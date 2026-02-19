@@ -1,0 +1,9 @@
+{
+  "team_name": "chase",
+  "display_name": "Chase",
+  "agent_class": "ChaseBot",
+  "agent_file": "ChaseBot.java",
+  "model_provider": "none",
+  "model_name": "none",
+  "description": "Adaptive macro-strategy bot that switches between worker/military rush and defense based on map state."
+}
