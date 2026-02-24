@@ -225,9 +225,37 @@ def compile_all():
     """Compile the entire project including submissions."""
     print("Compiling project...", flush=True)
 
-    # Use ant if available, fallback to manual compilation
+    # Use ant if available, fallback to manual javac compilation
+    try:
+        result = subprocess.run(
+            ["ant", "build"],
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+        if result.returncode == 0:
+            print("Compilation successful (ant).")
+            return True
+        print(f"ant build failed:\n{result.stderr}")
+        return False
+    except FileNotFoundError:
+        print("ant not found, falling back to javac...")
+
+    # Fallback: find all Java sources and compile with javac
+    sources_result = subprocess.run(
+        ["find", "src", "-name", "*.java"],
+        capture_output=True, text=True
+    )
+    if sources_result.returncode != 0:
+        print("Failed to find Java sources.")
+        return False
+
+    sources_file = "sources.list"
+    with open(sources_file, 'w') as f:
+        f.write(sources_result.stdout)
+
     result = subprocess.run(
-        ["ant", "build"],
+        ["javac", "-cp", "lib/*:bin", "-d", "bin", "@" + sources_file],
         capture_output=True,
         text=True,
         timeout=120
@@ -237,7 +265,7 @@ def compile_all():
         print(f"Compilation failed:\n{result.stderr}")
         return False
 
-    print("Compilation successful.")
+    print("Compilation successful (javac).")
     return True
 
 

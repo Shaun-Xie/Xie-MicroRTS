@@ -202,6 +202,12 @@ tbody tr:hover {
     font-weight: 500;
 }
 
+/* Date column */
+.date-cell {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
 /* H2H matrix */
 #h2h-table th,
 #h2h-table td {

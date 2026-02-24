@@ -86,6 +86,7 @@
             html += '<td>' + escapeHtml(entry.display_name) + '</td>';
             html += '<td class="score-cell">' + entry.score + '</td>';
             html += '<td>' + gradeBadge(entry.grade) + '</td>';
+            html += '<td class="date-cell">' + formatDate(entry.date) + '</td>';
 
             ANCHORS.forEach(function (anchor) {
                 html += opponentCell(entry.opponents, anchor);

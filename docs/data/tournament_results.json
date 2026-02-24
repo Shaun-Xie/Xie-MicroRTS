@@ -1,5 +1,5 @@
 {
-  "generated": "2026-02-21T17:13:05.436110",
+  "generated": "2026-02-24T20:05:48.844010",
   "anchors": [
     "RandomBiasedAI",
     "HeavyRush",
@@ -731,6 +731,30 @@
       }
     },
     {
+      "source": "tournament",
+      "source_file": "tournament_2026-02-24_20-05.json",
+      "team_name": "nick-mcts",
+      "display_name": "Nick MCTS",
+      "model_provider": "none",
+      "model_name": "none",
+      "agent_type": "submission",
+      "score": 5.0,
+      "grade": "F",
+      "eliminated_at": "RandomBiasedAI",
+      "date": "2026-02-24T20:05:06.574844",
+      "map": "maps/8x8/basesWorkers8x8.xml",
+      "games_per_matchup": 1,
+      "opponents": {
+        "RandomBiasedAI": {
+          "wins": 0,
+          "draws": 1,
+          "losses": 0,
+          "avg_game_score": 0.5,
+          "weighted_points": 5.0
+        }
+      }
+    },
+    {
       "source": "benchmark",
       "team_name": null,
       "display_name": "llama3.1:8b",
@@ -827,9 +851,65 @@
           "weighted_points": 0.0
         }
       }
+    },
+    {
+      "source": "tournament",
+      "source_file": "tournament_2026-02-24_20-05.json",
+      "team_name": "jmurr",
+      "display_name": "jmurr",
+      "model_provider": "none",
+      "model_name": "none",
+      "agent_type": "submission",
+      "score": 0.0,
+      "grade": "F",
+      "eliminated_at": "RandomBiasedAI",
+      "date": "2026-02-24T20:05:06.574844",
+      "map": "maps/8x8/basesWorkers8x8.xml",
+      "games_per_matchup": 1,
+      "opponents": {
+        "RandomBiasedAI": {
+          "wins": 0,
+          "draws": 0,
+          "losses": 1,
+          "avg_game_score": 0.0,
+          "weighted_points": 0.0
+        }
+      }
     }
   ],
   "history": [
+    {
+      "display_name": "AlliBot",
+      "score": 54.0,
+      "grade": "D",
+      "date": "2026-02-24T20:05:06.574844",
+      "source": "tournament",
+      "map": "maps/8x8/basesWorkers8x8.xml"
+    },
+    {
+      "display_name": "Example Team",
+      "score": 54.0,
+      "grade": "D",
+      "date": "2026-02-24T20:05:06.574844",
+      "source": "tournament",
+      "map": "maps/8x8/basesWorkers8x8.xml"
+    },
+    {
+      "display_name": "Nick MCTS",
+      "score": 5.0,
+      "grade": "F",
+      "date": "2026-02-24T20:05:06.574844",
+      "source": "tournament",
+      "map": "maps/8x8/basesWorkers8x8.xml"
+    },
+    {
+      "display_name": "jmurr",
+      "score": 0.0,
+      "grade": "F",
+      "date": "2026-02-24T20:05:06.574844",
+      "source": "tournament",
+      "map": "maps/8x8/basesWorkers8x8.xml"
+    },
     {
       "display_name": "AlliBot",
       "score": 54.0,
@@ -995,15 +1075,69 @@
     "AlliBot": {
       "Example Team": {
         "wins": 0,
-        "losses": 1,
+        "losses": 2,
         "draws": 0
+      },
+      "jmurr": {
+        "wins": 1,
+        "losses": 0,
+        "draws": 0
+      },
+      "Nick MCTS": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 1
       }
     },
     "Example Team": {
       "AlliBot": {
+        "wins": 2,
+        "losses": 0,
+        "draws": 0
+      },
+      "jmurr": {
         "wins": 1,
         "losses": 0,
         "draws": 0
+      },
+      "Nick MCTS": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 1
+      }
+    },
+    "jmurr": {
+      "AlliBot": {
+        "wins": 0,
+        "losses": 1,
+        "draws": 0
+      },
+      "Example Team": {
+        "wins": 0,
+        "losses": 1,
+        "draws": 0
+      },
+      "Nick MCTS": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 1
+      }
+    },
+    "Nick MCTS": {
+      "AlliBot": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 1
+      },
+      "Example Team": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 1
+      },
+      "jmurr": {
+        "wins": 0,
+        "losses": 0,
+        "draws": 1
       }
     }
   }
