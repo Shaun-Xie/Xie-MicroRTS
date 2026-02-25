@@ -1,0 +1,9 @@
+{
+  "team_name": "parker-riggs",
+  "display_name": "Parkers Bot",
+  "agent_class": "AdaptiveRushBot",
+  "agent_file": "AdaptiveRushBot.java",
+  "model_provider": "none",
+  "model_name": "none",
+  "description": "A hybrid rush bot that starts with a WorkerRush and transitions into a more balanced strategy switching to LightRush once the game progresses or pressure/resources suggest it should escalate."
+}
