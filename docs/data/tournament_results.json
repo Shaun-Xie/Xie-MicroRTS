@@ -660,33 +660,6 @@
     {
       "source": "benchmark",
       "team_name": null,
-      "display_name": "gemini-2.5-flash",
-      "model_provider": "ollama",
-      "model_name": "gemini-2.5-flash",
-      "agent_type": "full",
-      "score": 50.0,
-      "grade": "D",
-      "eliminated_at": null,
-      "date": "2026-02-03T05:48:36.310330",
-      "map": "maps/8x8/basesWorkers8x8.xml",
-      "games_per_matchup": 1,
-      "opponents": {
-        "RandomBiasedAI": {
-          "wins": 0,
-          "draws": 1,
-          "losses": 0
-        },
-        "WorkerRush": {
-          "wins": 0,
-          "draws": 1,
-          "losses": 0
-        }
-      },
-      "last_updated": "2026-02-03T05:48:36.310330"
-    },
-    {
-      "source": "benchmark",
-      "team_name": null,
       "display_name": "llama3.2 (Search+LLM)",
       "model_provider": "ollama",
       "model_name": "llama3.2",
@@ -834,60 +807,6 @@
         }
       },
       "last_updated": "2026-02-24T21:40:09.990203"
-    },
-    {
-      "source": "benchmark",
-      "team_name": null,
-      "display_name": "llama3.1:8b",
-      "model_provider": "ollama",
-      "model_name": "llama3.1:8b",
-      "agent_type": "full",
-      "score": 0.0,
-      "grade": "F",
-      "eliminated_at": null,
-      "date": "2026-02-03T05:48:36.310330",
-      "map": "maps/8x8/basesWorkers8x8.xml",
-      "games_per_matchup": 1,
-      "opponents": {
-        "RandomBiasedAI": {
-          "wins": 0,
-          "draws": 0,
-          "losses": 1
-        },
-        "WorkerRush": {
-          "wins": 0,
-          "draws": 0,
-          "losses": 1
-        }
-      },
-      "last_updated": "2026-02-03T05:48:36.310330"
-    },
-    {
-      "source": "benchmark",
-      "team_name": null,
-      "display_name": "qwen3:4b",
-      "model_provider": "ollama",
-      "model_name": "qwen3:4b",
-      "agent_type": "full",
-      "score": 0.0,
-      "grade": "F",
-      "eliminated_at": null,
-      "date": "2026-02-03T05:48:36.310330",
-      "map": "maps/8x8/basesWorkers8x8.xml",
-      "games_per_matchup": 1,
-      "opponents": {
-        "RandomBiasedAI": {
-          "wins": 0,
-          "draws": 0,
-          "losses": 1
-        },
-        "WorkerRush": {
-          "wins": 0,
-          "draws": 0,
-          "losses": 1
-        }
-      },
-      "last_updated": "2026-02-03T05:48:36.310330"
     },
     {
       "source": "benchmark",
@@ -1144,30 +1063,6 @@
       "score": 0.0,
       "grade": "F",
       "date": "2026-02-04T17:16:58.434397",
-      "source": "benchmark",
-      "map": "maps/8x8/basesWorkers8x8.xml"
-    },
-    {
-      "display_name": "gemini-2.5-flash",
-      "score": 50.0,
-      "grade": "D",
-      "date": "2026-02-03T05:48:36.310330",
-      "source": "benchmark",
-      "map": "maps/8x8/basesWorkers8x8.xml"
-    },
-    {
-      "display_name": "llama3.1:8b",
-      "score": 0.0,
-      "grade": "F",
-      "date": "2026-02-03T05:48:36.310330",
-      "source": "benchmark",
-      "map": "maps/8x8/basesWorkers8x8.xml"
-    },
-    {
-      "display_name": "qwen3:4b",
-      "score": 0.0,
-      "grade": "F",
-      "date": "2026-02-03T05:48:36.310330",
       "source": "benchmark",
       "map": "maps/8x8/basesWorkers8x8.xml"
     }

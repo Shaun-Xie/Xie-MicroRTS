@@ -19,13 +19,10 @@ Best benchmark score per model across all runs.
 | 9 | gemma3 (Search+LLM) | **54.0** | D | WorkerRush | 1W/0D/0L | 1W/0D/0L | 1W/0D/0L | 0W/0D/1L | -- | -- |
 | 10 | llama3.2 (Hybrid) | **54.0** | D | WorkerRush | 1W/0D/0L | 1W/0D/0L | 1W/0D/0L | 0W/0D/1L | -- | -- |
 | 11 | deepseek-chat (Hybrid) | **54.0** | D | WorkerRush | 1W/0D/0L | 1W/0D/0L | 1W/0D/0L | 0W/0D/1L | -- | -- |
-| 12 | gemini-2.5-flash | **50.0** | D | cleared all | 0W/1D/0L | - | - | 0W/1D/0L | - | - |
-| 13 | llama3.2 (Search+LLM) | **36.0** | F | LightRush | 1W/0D/0L | 1W/0D/0L | 0W/0D/1L | -- | -- | -- |
-| 14 | gemini-2.5-flash (PureLLM) | **5.0** | F | RandomBiasedAI | 0W/1D/0L | -- | -- | -- | -- | -- |
-| 15 | llama3.1:8b | **0.0** | F | cleared all | 0W/0D/1L | - | - | 0W/0D/1L | - | - |
-| 16 | qwen3:4b | **0.0** | F | cleared all | 0W/0D/1L | - | - | 0W/0D/1L | - | - |
-| 17 | llama3.1:8b (PureLLM) | **0.0** | F | RandomBiasedAI | 0W/0D/1L | -- | -- | -- | -- | -- |
-| 18 | qwen3:4b (PureLLM) | **0.0** | F | RandomBiasedAI | 0W/0D/1L | -- | -- | -- | -- | -- |
+| 12 | llama3.2 (Search+LLM) | **36.0** | F | LightRush | 1W/0D/0L | 1W/0D/0L | 0W/0D/1L | -- | -- | -- |
+| 13 | gemini-2.5-flash (PureLLM) | **5.0** | F | RandomBiasedAI | 0W/1D/0L | -- | -- | -- | -- | -- |
+| 14 | llama3.1:8b (PureLLM) | **0.0** | F | RandomBiasedAI | 0W/0D/1L | -- | -- | -- | -- | -- |
+| 15 | qwen3:4b (PureLLM) | **0.0** | F | RandomBiasedAI | 0W/0D/1L | -- | -- | -- | -- | -- |
 
 ---
 
@@ -214,20 +211,6 @@ Best benchmark score per model across all runs.
 | LightRush | 1 | 0 | 0 | 18.0 |
 | WorkerRush | 0 | 0 | 1 | 0.0 |
 
-### gemini-2.5-flash - 50.0 pts (D -- cleared all)
-
-- **Date:** 2026-02-03
-- **Arena version:** v1.0
-- **Format:** full
-- **Map:** `maps/8x8/basesWorkers8x8.xml`
-- **Games per matchup:** 1
-- **Source:** `benchmark_2026-02-03_05-48.json`
-
-| Opponent | W | D | L | Weighted Pts |
-|----------|---|---|---|-------------|
-| RandomBiasedAI | 0 | 1 | 0 | - |
-| WorkerRush | 0 | 1 | 0 | - |
-
 ### llama3.2 (Search+LLM) - 36.0 pts (F -- eliminated at LightRush)
 
 - **Date:** 2026-02-05
@@ -255,34 +238,6 @@ Best benchmark score per model across all runs.
 | Opponent | W | D | L | Weighted Pts |
 |----------|---|---|---|-------------|
 | RandomBiasedAI | 0 | 1 | 0 | 5.0 |
-
-### llama3.1:8b - 0.0 pts (F -- cleared all)
-
-- **Date:** 2026-02-03
-- **Arena version:** v1.0
-- **Format:** full
-- **Map:** `maps/8x8/basesWorkers8x8.xml`
-- **Games per matchup:** 1
-- **Source:** `benchmark_2026-02-03_05-48.json`
-
-| Opponent | W | D | L | Weighted Pts |
-|----------|---|---|---|-------------|
-| RandomBiasedAI | 0 | 0 | 1 | - |
-| WorkerRush | 0 | 0 | 1 | - |
-
-### qwen3:4b - 0.0 pts (F -- cleared all)
-
-- **Date:** 2026-02-03
-- **Arena version:** v1.0
-- **Format:** full
-- **Map:** `maps/8x8/basesWorkers8x8.xml`
-- **Games per matchup:** 1
-- **Source:** `benchmark_2026-02-03_05-48.json`
-
-| Opponent | W | D | L | Weighted Pts |
-|----------|---|---|---|-------------|
-| RandomBiasedAI | 0 | 0 | 1 | - |
-| WorkerRush | 0 | 0 | 1 | - |
 
 ### llama3.1:8b (PureLLM) - 0.0 pts (F -- eliminated at RandomBiasedAI)
 
@@ -325,10 +280,7 @@ Best benchmark score per model across all runs.
 
 ## Version Notes
 
-- **v1.0**: 2 opponents, play all (RandomBiasedAI 40pts + WorkerRush 60pts)
 - **v2.0**: 6 opponents, single-elimination (RandomBiasedAI 10 -> HeavyRush 20 -> LightRush 15 -> WorkerRush 15 -> Tiamat 20 -> CoacAI 20)
-
-Scores from different versions are **not directly comparable** due to different opponent sets, weights, and format.
 
 ---
 

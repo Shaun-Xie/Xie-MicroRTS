@@ -514,30 +514,6 @@
       "source_file": "benchmark_2026-02-05_09-04.json"
     },
     {
-      "model": "gemini-2.5-flash",
-      "score": 50.0,
-      "grade": "D",
-      "version": "1.0",
-      "format": "full",
-      "eliminated_at": null,
-      "date": "2026-02-03T05:48:36.310330",
-      "map": "maps/8x8/basesWorkers8x8.xml",
-      "games_per_matchup": 1,
-      "opponents": {
-        "RandomBiasedAI": {
-          "wins": 0,
-          "draws": 1,
-          "losses": 0
-        },
-        "WorkerRush": {
-          "wins": 0,
-          "draws": 1,
-          "losses": 0
-        }
-      },
-      "source_file": "benchmark_2026-02-03_05-48.json"
-    },
-    {
       "model": "llama3.2 (Search+LLM)",
       "score": 36.0,
       "grade": "F",
@@ -592,54 +568,6 @@
         }
       },
       "source_file": "benchmark_2026-02-04_17-16.json"
-    },
-    {
-      "model": "llama3.1:8b",
-      "score": 0.0,
-      "grade": "F",
-      "version": "1.0",
-      "format": "full",
-      "eliminated_at": null,
-      "date": "2026-02-03T05:48:36.310330",
-      "map": "maps/8x8/basesWorkers8x8.xml",
-      "games_per_matchup": 1,
-      "opponents": {
-        "RandomBiasedAI": {
-          "wins": 0,
-          "draws": 0,
-          "losses": 1
-        },
-        "WorkerRush": {
-          "wins": 0,
-          "draws": 0,
-          "losses": 1
-        }
-      },
-      "source_file": "benchmark_2026-02-03_05-48.json"
-    },
-    {
-      "model": "qwen3:4b",
-      "score": 0.0,
-      "grade": "F",
-      "version": "1.0",
-      "format": "full",
-      "eliminated_at": null,
-      "date": "2026-02-03T05:48:36.310330",
-      "map": "maps/8x8/basesWorkers8x8.xml",
-      "games_per_matchup": 1,
-      "opponents": {
-        "RandomBiasedAI": {
-          "wins": 0,
-          "draws": 0,
-          "losses": 1
-        },
-        "WorkerRush": {
-          "wins": 0,
-          "draws": 0,
-          "losses": 1
-        }
-      },
-      "source_file": "benchmark_2026-02-03_05-48.json"
     },
     {
       "model": "llama3.1:8b (PureLLM)",
