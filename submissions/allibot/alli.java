@@ -418,6 +418,10 @@ public class alli extends AIWithComputationBudget {
         _pa.addUnitAction(a, ua);
         if (!_newDmgs.containsKey(e))
             _newDmgs.put(e, 0);
+        // getMaxHitPoints() was changed to getMaxDamage().
+        // Before, it added the attacker’s HP to predicted damage on the enemy.
+        // Now, it adds the attacker’s attack damage, which is what should reduce enemy HP.
+        // It now says, “if this attack is legal, schedule it and count how much damage this attacker will do to that enemy.”
         int newDmg = _newDmgs.get(e) + a.getMaxDamage();
         _newDmgs.replace(e, newDmg);
         return true;
@@ -475,6 +479,10 @@ public class alli extends AIWithComputationBudget {
             if (!posFree(newPos.getX(), newPos.getY(), NoDirection)) //a hack
                 continue;
             UnitAction ua = new UnitAction(UnitAction.TYPE_MOVE, dir);
+            // ua is an action built for unit a (move/attack/etc).
+            // Old code checked legality for b but then assigned the action to a
+            // So before, it was validating the wrong unit, which could:
+            // reject valid actions for a, or allow actions that are illegal for a. 
             if (_gs.isUnitActionAllowed(a, ua)) {
                 _pa.addUnitAction(a, ua);
                 lockPos(newPos.getX(), newPos.getY(), NoDirection);
@@ -622,6 +630,7 @@ public class alli extends AIWithComputationBudget {
         }
     }
     
+    // Treat the base as threatened if any enemy attacker (or rushing worker) gets close.
     boolean baseUnderThreat() {
         if (_bases.isEmpty())
             return false;
@@ -636,6 +645,7 @@ public class alli extends AIWithComputationBudget {
     }
     
     boolean shouldWorkersAttack() {
+        // Defend sooner: pull workers into combat as soon as the base is threatened.
         if (baseUnderThreat())
             return true;
         if (_pgs.getWidth() <= 12)
@@ -671,6 +681,7 @@ public class alli extends AIWithComputationBudget {
     }
     
     int harvesterPerBase() {
+        // Under pressure, keep fewer harvesters so more workers are available to defend.
         if (baseUnderThreat())
             return 1;
         
@@ -861,6 +872,7 @@ public class alli extends AIWithComputationBudget {
             if (busy(barrack))
                 continue;
             if (baseUnderThreat()) {
+                // Defensive priority: produce ranged units first for immediate response.
                 if (produceCombat(barrack, _utt.getUnitType("Ranged")))
                     continue;
             }
@@ -1303,6 +1315,7 @@ public class alli extends AIWithComputationBudget {
         
         workerAction();
         
+        // Workers switch to combat early when defensive conditions trigger.
         if (shouldWorkersAttack())
             goCombat(_workers, 35);
         else
