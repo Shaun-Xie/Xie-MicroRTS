@@ -9,10 +9,10 @@
  *    immediately fall back to original rule-based behavior in this file.
  *
  * General Flow:
- * 1) Game calls getAction() at 1410.
- * 2) Try Search+LLM first via trySearchLLMAction() at 1341.
+ * 1) Game calls getAction() at ~1456.
+ * 2) Try Search+LLM first via trySearchLLMAction() at ~1385.
  * 3) If Search+LLM returns a real action, use it immediately.
- * 4) If search is disabled, skipped, fails, or returns no real move, fallback to getRuleBasedAction() at 1366.
+ * 4) If search is disabled, skipped, fails, or returns no real move, fallback to getRuleBasedAction() at ~1412.
  * 5) Fallback runs the original pre-LLM rule-based logic.
  */
 
@@ -30,6 +30,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.lang.reflect.Field;
 import rts.GameState;
 import rts.PhysicalGameState;
 import static rts.PhysicalGameState.TERRAIN_WALL;
@@ -50,6 +52,41 @@ import rts.units.UnitTypeTable;
  * version 2.0
 */
 public class alli extends AIWithComputationBudget {
+    private static final String DEFAULT_OLLAMA_MODEL = "qwen3:14b";
+    private static final String DEFAULT_OLLAMA_HOST = "http://localhost:11434";
+
+    static {
+        // Ensure defaults so no shell exports are required for qwen3:14b on localhost.
+        ensureEnv("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL);
+        ensureEnv("OLLAMA_HOST", DEFAULT_OLLAMA_HOST);
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static void ensureEnv(String key, String value) {
+        try {
+            Map<String, String> env = System.getenv();
+            if (env.containsKey(key)) return;
+
+            Class<?> pe = Class.forName("java.lang.ProcessEnvironment");
+            Field envField = pe.getDeclaredField("theEnvironment");
+            envField.setAccessible(true);
+            Map<String, String> envMap = (Map<String, String>) envField.get(null);
+            envMap.putIfAbsent(key, value);
+
+            Field ciField = pe.getDeclaredField("theCaseInsensitiveEnvironment");
+            ciField.setAccessible(true);
+            Map<String, String> ciEnv = (Map<String, String>) ciField.get(null);
+            ciEnv.putIfAbsent(key, value);
+        } catch (Exception ignored) {
+            try {
+                Map<String, String> env = System.getenv();
+                Field m = env.getClass().getDeclaredField("m");
+                m.setAccessible(true);
+                Map<String, String> mutable = (Map<String, String>) m.get(env);
+                mutable.putIfAbsent(key, value);
+            } catch (Exception ignoredToo) { }
+        }
+    }
         
     public class Pos {
         int _x;
@@ -221,7 +258,14 @@ public class alli extends AIWithComputationBudget {
         super(-1, -1);
         _utt = utt;
         // Initialize Search+LLM delegate once and reuse it.
-        _searchAgent = new LLMInformedMCTS(utt);
+        LLMInformedMCTS tmp;
+        try {
+            tmp = new LLMInformedMCTS(utt);
+        } catch (Exception e) {
+            tmp = null;
+            System.err.println("[alli] LLMInformedMCTS init failed (using rules only): " + e.getMessage());
+        }
+        _searchAgent = tmp;
         restartPathFind(); //FloodFillPathFinding(); //AStarPathFinding();
         _memHarvesters = new ArrayList<>();
                 
@@ -1339,6 +1383,8 @@ public class alli extends AIWithComputationBudget {
      * Returns null when search is skipped, fails, or gives no concrete command.
      */
     PlayerAction trySearchLLMAction(int player, GameState gs) {
+        if (_searchAgent == null)
+            return null;
         if (!shouldUseSearchThisTick(gs.getTime()))
             return null;
 
