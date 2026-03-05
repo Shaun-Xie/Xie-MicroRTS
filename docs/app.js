@@ -7,31 +7,21 @@
     var ANCHORS = ['RandomBiasedAI', 'HeavyRush', 'LightRush', 'WorkerRush', 'Tiamat', 'CoacAI'];
     var GRADE_ORDER = { 'A+': 0, 'A': 1, 'B': 2, 'C': 3, 'D': 4, 'F': 5 };
 
-    // Store raw data for filtering/sorting
-    var rawData = null;
-    var sortState = {}; // tableId -> { key, dir }
+    // State
+    var sortState = {};
+    var leaderboardEntries = [];
+    var benchmarkEntries = [];
+    var historyEntries = [];
+    var dataLoaded = false;
 
-    // Tab switching
-    document.querySelectorAll('.tab').forEach(function (tab) {
-        tab.addEventListener('click', function (e) {
-            e.preventDefault();
-            var target = this.getAttribute('data-tab');
-            if (!target) return;
+    // --- Utilities ---
 
-            document.querySelectorAll('.tab').forEach(function (t) {
-                t.classList.remove('active');
-            });
-            this.classList.add('active');
+    function escapeHtml(str) {
+        if (str == null) return '';
+        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
 
-            document.querySelectorAll('.tab-content').forEach(function (c) {
-                c.classList.remove('active');
-            });
-            var el = document.getElementById(target);
-            if (el) el.classList.add('active');
-        });
-    });
-
-    // Grade badge HTML
     function gradeBadge(grade) {
         var cls = 'grade-f';
         if (grade === 'A+') cls = 'grade-aplus';
@@ -42,31 +32,20 @@
         return '<span class="grade ' + cls + '">' + escapeHtml(grade) + '</span>';
     }
 
-    function escapeHtml(str) {
-        if (str == null) return '';
-        return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
-    }
-
-    // Format opponent cell
     function opponentCell(opponents, anchorName) {
         var data = opponents ? opponents[anchorName] : null;
         if (!data) return '<td class="result-skip">--</td>';
-
         var w = data.wins || 0;
         var d = data.draws || 0;
         var l = data.losses || 0;
         var pts = data.weighted_points != null ? data.weighted_points : '?';
-
         var cls = 'result-skip';
         if (w > 0) cls = 'result-win';
         else if (l > 0) cls = 'result-loss';
         else if (d > 0) cls = 'result-draw';
-
         return '<td class="' + cls + '">' + w + 'W/' + d + 'D/' + l + 'L<br><small>' + pts + ' pts</small></td>';
     }
 
-    // Format date
     function formatDate(dateStr) {
         if (!dateStr) return '--';
         try {
@@ -77,7 +56,6 @@
         }
     }
 
-    // Relative time (e.g., "3 days ago")
     function timeAgo(dateStr) {
         if (!dateStr) return '';
         try {
@@ -87,7 +65,6 @@
             var diffMins = Math.floor(diffMs / 60000);
             var diffHours = Math.floor(diffMs / 3600000);
             var diffDays = Math.floor(diffMs / 86400000);
-
             if (diffMins < 1) return 'just now';
             if (diffMins < 60) return diffMins + 'm ago';
             if (diffHours < 24) return diffHours + 'h ago';
@@ -100,7 +77,6 @@
         }
     }
 
-    // Format date with relative time for leaderboard
     function formatDateWithAge(dateStr) {
         if (!dateStr) return '--';
         var formatted = formatDate(dateStr);
@@ -111,7 +87,6 @@
         return formatted;
     }
 
-    // Extract YYYY-MM-DD from a date string for comparison
     function toDateOnly(dateStr) {
         if (!dateStr) return '';
         try {
@@ -121,13 +96,21 @@
         }
     }
 
+    // Object.values polyfill for older browsers
+    function objValues(obj) {
+        if (Object.values) return Object.values(obj);
+        var vals = [];
+        for (var k in obj) {
+            if (obj.hasOwnProperty(k)) vals.push(obj[k]);
+        }
+        return vals;
+    }
+
     // --- Sorting ---
 
     function comparator(type) {
         return function (a, b) {
-            if (type === 'number') {
-                return (parseFloat(a) || 0) - (parseFloat(b) || 0);
-            }
+            if (type === 'number') return (parseFloat(a) || 0) - (parseFloat(b) || 0);
             if (type === 'date') {
                 var da = a ? new Date(a).getTime() : 0;
                 var db = b ? new Date(b).getTime() : 0;
@@ -138,7 +121,6 @@
                 var gb = GRADE_ORDER[b] != null ? GRADE_ORDER[b] : 99;
                 return ga - gb;
             }
-            // string
             return String(a || '').localeCompare(String(b || ''));
         };
     }
@@ -147,9 +129,7 @@
         var cmp = comparator(type);
         var sorted = entries.slice();
         sorted.sort(function (a, b) {
-            var va = a._sortData[key];
-            var vb = b._sortData[key];
-            var result = cmp(va, vb);
+            var result = cmp(a._sortData[key], b._sortData[key]);
             return dir === 'asc' ? result : -result;
         });
         return sorted;
@@ -158,29 +138,13 @@
     function updateSortIndicators(tableId, activeKey, dir) {
         var table = document.getElementById(tableId);
         if (!table) return;
-        table.querySelectorAll('th[data-sort]').forEach(function (th) {
-            th.classList.remove('sort-asc', 'sort-desc');
-            if (th.getAttribute('data-sort') === activeKey) {
-                th.classList.add(dir === 'asc' ? 'sort-asc' : 'sort-desc');
+        var ths = table.querySelectorAll('th[data-sort]');
+        for (var i = 0; i < ths.length; i++) {
+            ths[i].classList.remove('sort-asc', 'sort-desc');
+            if (ths[i].getAttribute('data-sort') === activeKey) {
+                ths[i].classList.add(dir === 'asc' ? 'sort-asc' : 'sort-desc');
             }
-        });
-    }
-
-    function attachSortHandlers(tableId, renderFn) {
-        var table = document.getElementById(tableId);
-        if (!table) return;
-        table.querySelectorAll('th[data-sort]').forEach(function (th) {
-            th.style.cursor = 'pointer';
-            th.addEventListener('click', function () {
-                var key = this.getAttribute('data-sort');
-                var type = this.getAttribute('data-type') || 'string';
-                var state = sortState[tableId] || {};
-                var dir = (state.key === key && state.dir === 'desc') ? 'asc' : 'desc';
-                sortState[tableId] = { key: key, type: type, dir: dir };
-                updateSortIndicators(tableId, key, dir);
-                renderFn();
-            });
-        });
+        }
     }
 
     // --- Filtering ---
@@ -224,130 +188,67 @@
         }
     }
 
-    function attachFilterHandlers(prefix, renderFn) {
-        var ids = [prefix + '-search', prefix + '-date-from', prefix + '-date-to'];
-        ids.forEach(function (id) {
-            var el = document.getElementById(id);
-            if (el) el.addEventListener('input', renderFn);
-        });
-        var clearBtn = document.getElementById(prefix + '-date-clear');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', function () {
-                var fromEl = document.getElementById(prefix + '-date-from');
-                var toEl = document.getElementById(prefix + '-date-to');
-                if (fromEl) fromEl.value = '';
-                if (toEl) toEl.value = '';
-                renderFn();
-            });
-        }
-    }
-
     // --- Render functions ---
-
-    // Leaderboard
-    var leaderboardEntries = [];
-
-    function prepareLeaderboard(data) {
-        leaderboardEntries = (data.leaderboard || []).map(function (entry, i) {
-            return {
-                raw: entry,
-                _sortData: {
-                    rank: i + 1,
-                    name: entry.display_name || '',
-                    score: entry.score,
-                    grade: entry.grade || 'F',
-                    date: entry.last_updated || entry.date || ''
-                }
-            };
-        });
-    }
 
     function renderLeaderboard() {
         var tbody = document.querySelector('#leaderboard-table tbody');
-        if (!tbody) return;
+        if (!tbody || !dataLoaded) return;
         tbody.innerHTML = '';
 
         var filters = getFilterValues('leaderboard');
-        var entries = leaderboardEntries.filter(function (e) {
-            if (!matchesSearch(e, filters.search, ['name', 'grade'])) return false;
-            if (!matchesDateRange(e._sortData.date, filters.dateFrom, filters.dateTo)) return false;
-            return true;
-        });
+        var entries = [];
+        for (var i = 0; i < leaderboardEntries.length; i++) {
+            var e = leaderboardEntries[i];
+            if (!matchesSearch(e, filters.search, ['name', 'grade'])) continue;
+            if (!matchesDateRange(e._sortData.date, filters.dateFrom, filters.dateTo)) continue;
+            entries.push(e);
+        }
 
         var state = sortState['leaderboard-table'];
         if (state) {
             entries = sortEntries(entries, state.key, state.type, state.dir);
         }
 
-        entries.forEach(function (e, i) {
-            var entry = e.raw;
+        for (var j = 0; j < entries.length; j++) {
+            var entry = entries[j].raw;
             var row = document.createElement('tr');
-            var displayRank = state ? (i + 1) : e._sortData.rank;
+            var displayRank = state ? (j + 1) : entries[j]._sortData.rank;
             var html = '<td class="rank-cell">' + displayRank + '</td>';
             html += '<td>' + escapeHtml(entry.display_name) + '</td>';
             html += '<td class="score-cell">' + entry.score + '</td>';
             html += '<td>' + gradeBadge(entry.grade) + '</td>';
             html += '<td class="date-cell">' + formatDateWithAge(entry.last_updated || entry.date) + '</td>';
-
-            ANCHORS.forEach(function (anchor) {
-                html += opponentCell(entry.opponents, anchor);
-            });
-
+            for (var k = 0; k < ANCHORS.length; k++) {
+                html += opponentCell(entry.opponents, ANCHORS[k]);
+            }
             row.innerHTML = html;
             tbody.appendChild(row);
-        });
+        }
 
         updateCount('leaderboard-count', entries.length, leaderboardEntries.length);
     }
 
-    // Benchmarks
-    var benchmarkEntries = [];
-
-    function prepareBenchmarks(data) {
-        var entries = data.history || [];
-        var seen = {};
-        entries.forEach(function (entry) {
-            var key = entry.display_name;
-            if (!seen[key] || entry.score > seen[key].score) {
-                seen[key] = entry;
-            }
-        });
-        var best = Object.values(seen);
-        best.sort(function (a, b) { return b.score - a.score; });
-
-        benchmarkEntries = best.map(function (entry) {
-            return {
-                raw: entry,
-                _sortData: {
-                    name: entry.display_name || '',
-                    score: entry.score,
-                    grade: entry.grade || 'F',
-                    source: entry.source || 'unknown',
-                    date: entry.date || ''
-                }
-            };
-        });
-    }
-
     function renderBenchmarks() {
         var tbody = document.querySelector('#benchmarks-table tbody');
-        if (!tbody) return;
+        if (!tbody || !dataLoaded) return;
         tbody.innerHTML = '';
 
         var filters = getFilterValues('benchmarks');
-        var entries = benchmarkEntries.filter(function (e) {
-            if (!matchesSearch(e, filters.search, ['name', 'grade', 'source'])) return false;
-            if (!matchesDateRange(e._sortData.date, filters.dateFrom, filters.dateTo)) return false;
-            return true;
-        });
+        var entries = [];
+        for (var i = 0; i < benchmarkEntries.length; i++) {
+            var e = benchmarkEntries[i];
+            if (!matchesSearch(e, filters.search, ['name', 'grade', 'source'])) continue;
+            if (!matchesDateRange(e._sortData.date, filters.dateFrom, filters.dateTo)) continue;
+            entries.push(e);
+        }
 
         var state = sortState['benchmarks-table'];
         if (state) {
             entries = sortEntries(entries, state.key, state.type, state.dir);
         }
 
-        entries.forEach(function (e) {
-            var entry = e.raw;
+        for (var j = 0; j < entries.length; j++) {
+            var entry = entries[j].raw;
             var row = document.createElement('tr');
             var src = entry.source || 'unknown';
             row.innerHTML =
@@ -357,19 +258,23 @@
                 '<td><span class="source-badge">' + escapeHtml(src) + '</span></td>' +
                 '<td>' + formatDate(entry.date) + '</td>';
             tbody.appendChild(row);
-        });
+        }
 
         updateCount('benchmarks-count', entries.length, benchmarkEntries.length);
     }
 
-    // Head-to-head matrix
     function renderH2H(data) {
         var h2h = data.head_to_head || {};
-        var players = Object.keys(h2h).sort();
+        var players = [];
+        for (var p in h2h) {
+            if (h2h.hasOwnProperty(p)) players.push(p);
+        }
+        players.sort();
 
         if (players.length === 0) {
             document.getElementById('h2h-empty').style.display = 'block';
-            document.querySelector('#h2h .table-container').style.display = 'none';
+            var container = document.querySelector('#h2h .table-container');
+            if (container) container.style.display = 'none';
             return;
         }
 
@@ -377,18 +282,19 @@
         var tbody = document.querySelector('#h2h-table tbody');
 
         var headerHtml = '<tr><th></th>';
-        players.forEach(function (p) {
-            headerHtml += '<th>' + escapeHtml(p.split(' (')[0]) + '</th>';
-        });
+        for (var hi = 0; hi < players.length; hi++) {
+            headerHtml += '<th>' + escapeHtml(players[hi].split(' (')[0]) + '</th>';
+        }
         headerHtml += '</tr>';
         thead.innerHTML = headerHtml;
 
         tbody.innerHTML = '';
-        players.forEach(function (p1) {
+        for (var ri = 0; ri < players.length; ri++) {
+            var p1 = players[ri];
             var row = document.createElement('tr');
             var html = '<td>' + escapeHtml(p1) + '</td>';
-
-            players.forEach(function (p2) {
+            for (var ci = 0; ci < players.length; ci++) {
+                var p2 = players[ci];
                 if (p1 === p2) {
                     html += '<td class="h2h-self">-</td>';
                 } else {
@@ -403,51 +309,33 @@
                         html += '<td class="result-skip">--</td>';
                     }
                 }
-            });
-
+            }
             row.innerHTML = html;
             tbody.appendChild(row);
-        });
-    }
-
-    // History
-    var historyEntries = [];
-
-    function prepareHistory(data) {
-        historyEntries = (data.history || []).map(function (entry) {
-            return {
-                raw: entry,
-                _sortData: {
-                    date: entry.date || '',
-                    name: entry.display_name || '',
-                    score: entry.score,
-                    grade: entry.grade || 'F',
-                    source: entry.source || 'unknown',
-                    map: entry.map || ''
-                }
-            };
-        });
+        }
     }
 
     function renderHistory() {
         var tbody = document.querySelector('#history-table tbody');
-        if (!tbody) return;
+        if (!tbody || !dataLoaded) return;
         tbody.innerHTML = '';
 
         var filters = getFilterValues('history');
-        var entries = historyEntries.filter(function (e) {
-            if (!matchesSearch(e, filters.search, ['name', 'grade', 'source', 'map'])) return false;
-            if (!matchesDateRange(e._sortData.date, filters.dateFrom, filters.dateTo)) return false;
-            return true;
-        });
+        var entries = [];
+        for (var i = 0; i < historyEntries.length; i++) {
+            var e = historyEntries[i];
+            if (!matchesSearch(e, filters.search, ['name', 'grade', 'source', 'map'])) continue;
+            if (!matchesDateRange(e._sortData.date, filters.dateFrom, filters.dateTo)) continue;
+            entries.push(e);
+        }
 
         var state = sortState['history-table'];
         if (state) {
             entries = sortEntries(entries, state.key, state.type, state.dir);
         }
 
-        entries.forEach(function (e) {
-            var entry = e.raw;
+        for (var j = 0; j < entries.length; j++) {
+            var entry = entries[j].raw;
             var row = document.createElement('tr');
             var src = entry.source || 'unknown';
             row.innerHTML =
@@ -458,12 +346,92 @@
                 '<td><span class="source-badge">' + escapeHtml(src) + '</span></td>' +
                 '<td>' + escapeHtml(entry.map || '--') + '</td>';
             tbody.appendChild(row);
-        });
+        }
 
         updateCount('history-count', entries.length, historyEntries.length);
     }
 
-    // --- Init ---
+    // --- Event binding (runs immediately, before data loads) ---
+
+    // Tab switching
+    var tabs = document.querySelectorAll('.tab');
+    for (var ti = 0; ti < tabs.length; ti++) {
+        tabs[ti].addEventListener('click', function (e) {
+            e.preventDefault();
+            var target = this.getAttribute('data-tab');
+            if (!target) return;
+            var allTabs = document.querySelectorAll('.tab');
+            for (var i = 0; i < allTabs.length; i++) allTabs[i].classList.remove('active');
+            this.classList.add('active');
+            var contents = document.querySelectorAll('.tab-content');
+            for (var i = 0; i < contents.length; i++) contents[i].classList.remove('active');
+            var el = document.getElementById(target);
+            if (el) el.classList.add('active');
+        });
+    }
+
+    // Sort handlers - attach to all th[data-sort] in the page
+    function handleSort(e) {
+        var th = e.currentTarget;
+        var table = th.closest('table');
+        if (!table) return;
+        var tableId = table.id;
+        var key = th.getAttribute('data-sort');
+        var type = th.getAttribute('data-type') || 'string';
+        var prev = sortState[tableId] || {};
+        var dir = (prev.key === key && prev.dir === 'desc') ? 'asc' : 'desc';
+        sortState[tableId] = { key: key, type: type, dir: dir };
+        updateSortIndicators(tableId, key, dir);
+
+        if (tableId === 'leaderboard-table') renderLeaderboard();
+        else if (tableId === 'benchmarks-table') renderBenchmarks();
+        else if (tableId === 'history-table') renderHistory();
+    }
+
+    var sortHeaders = document.querySelectorAll('th[data-sort]');
+    for (var si = 0; si < sortHeaders.length; si++) {
+        sortHeaders[si].addEventListener('click', handleSort);
+    }
+
+    // Filter handlers - search inputs and date inputs + filter buttons
+    function setupFilter(prefix, renderFn) {
+        var searchEl = document.getElementById(prefix + '-search');
+        var fromEl = document.getElementById(prefix + '-date-from');
+        var toEl = document.getElementById(prefix + '-date-to');
+        var clearBtn = document.getElementById(prefix + '-date-clear');
+        var filterBtn = document.getElementById(prefix + '-filter-btn');
+
+        // Live filtering on every keystroke/change
+        if (searchEl) {
+            searchEl.addEventListener('input', renderFn);
+            searchEl.addEventListener('change', renderFn);
+            searchEl.addEventListener('keyup', renderFn);
+        }
+        if (fromEl) {
+            fromEl.addEventListener('input', renderFn);
+            fromEl.addEventListener('change', renderFn);
+        }
+        if (toEl) {
+            toEl.addEventListener('input', renderFn);
+            toEl.addEventListener('change', renderFn);
+        }
+        if (clearBtn) {
+            clearBtn.addEventListener('click', function () {
+                if (fromEl) fromEl.value = '';
+                if (toEl) toEl.value = '';
+                renderFn();
+            });
+        }
+        if (filterBtn) {
+            filterBtn.addEventListener('click', renderFn);
+        }
+    }
+
+    setupFilter('leaderboard', renderLeaderboard);
+    setupFilter('benchmarks', renderBenchmarks);
+    setupFilter('history', renderHistory);
+
+    // --- Data loading ---
 
     fetch(DATA_URL)
         .then(function (response) {
@@ -471,28 +439,67 @@
             return response.json();
         })
         .then(function (data) {
-            rawData = data;
+            // Prepare leaderboard
+            var lb = data.leaderboard || [];
+            for (var i = 0; i < lb.length; i++) {
+                leaderboardEntries.push({
+                    raw: lb[i],
+                    _sortData: {
+                        rank: i + 1,
+                        name: lb[i].display_name || '',
+                        score: lb[i].score,
+                        grade: lb[i].grade || 'F',
+                        date: lb[i].last_updated || lb[i].date || ''
+                    }
+                });
+            }
 
-            // Prepare data
-            prepareLeaderboard(data);
-            prepareBenchmarks(data);
-            prepareHistory(data);
+            // Prepare benchmarks (best per name)
+            var history = data.history || [];
+            var seen = {};
+            for (var j = 0; j < history.length; j++) {
+                var key = history[j].display_name;
+                if (!seen[key] || history[j].score > seen[key].score) {
+                    seen[key] = history[j];
+                }
+            }
+            var best = objValues(seen);
+            best.sort(function (a, b) { return b.score - a.score; });
+            for (var bi = 0; bi < best.length; bi++) {
+                benchmarkEntries.push({
+                    raw: best[bi],
+                    _sortData: {
+                        name: best[bi].display_name || '',
+                        score: best[bi].score,
+                        grade: best[bi].grade || 'F',
+                        source: best[bi].source || 'unknown',
+                        date: best[bi].date || ''
+                    }
+                });
+            }
 
-            // Initial render
+            // Prepare history
+            for (var hi = 0; hi < history.length; hi++) {
+                historyEntries.push({
+                    raw: history[hi],
+                    _sortData: {
+                        date: history[hi].date || '',
+                        name: history[hi].display_name || '',
+                        score: history[hi].score,
+                        grade: history[hi].grade || 'F',
+                        source: history[hi].source || 'unknown',
+                        map: history[hi].map || ''
+                    }
+                });
+            }
+
+            dataLoaded = true;
+
+            // Render all
             renderLeaderboard();
             renderBenchmarks();
             renderH2H(data);
             renderHistory();
-
-            // Attach sort handlers
-            attachSortHandlers('leaderboard-table', renderLeaderboard);
-            attachSortHandlers('benchmarks-table', renderBenchmarks);
-            attachSortHandlers('history-table', renderHistory);
-
-            // Attach filter handlers
-            attachFilterHandlers('leaderboard', renderLeaderboard);
-            attachFilterHandlers('benchmarks', renderBenchmarks);
-            attachFilterHandlers('history', renderHistory);
 
             var genEl = document.getElementById('generated-at');
             if (genEl && data.generated) {

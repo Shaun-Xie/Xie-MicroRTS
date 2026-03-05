@@ -29,16 +29,16 @@
             <h2>Leaderboard</h2>
             <p class="section-desc">
                 Best score per model/team. Single-elimination against 6 reference AIs (0-100 scale).
+                Click column headers to sort.
             </p>
             <div class="toolbar">
                 <input type="text" id="leaderboard-search" class="search-input" placeholder="Search name, grade...">
-                <div class="date-filter">
-                    <label>From</label>
-                    <input type="date" id="leaderboard-date-from" class="date-input">
-                    <label>To</label>
-                    <input type="date" id="leaderboard-date-to" class="date-input">
-                    <button id="leaderboard-date-clear" class="btn-clear" title="Clear date filter">&times;</button>
-                </div>
+                <label class="date-label">From</label>
+                <input type="date" id="leaderboard-date-from" class="date-input">
+                <label class="date-label">To</label>
+                <input type="date" id="leaderboard-date-to" class="date-input">
+                <button id="leaderboard-filter-btn" class="btn-filter">Filter</button>
+                <button id="leaderboard-date-clear" class="btn-clear" title="Clear filters">&times;</button>
             </div>
             <div class="table-container">
                 <table id="leaderboard-table" class="sortable">
@@ -68,16 +68,16 @@
             <h2>Benchmark Scores</h2>
             <p class="section-desc">
                 All recorded benchmark runs, showing score progression over time.
+                Click column headers to sort.
             </p>
             <div class="toolbar">
                 <input type="text" id="benchmarks-search" class="search-input" placeholder="Search name, source, grade...">
-                <div class="date-filter">
-                    <label>From</label>
-                    <input type="date" id="benchmarks-date-from" class="date-input">
-                    <label>To</label>
-                    <input type="date" id="benchmarks-date-to" class="date-input">
-                    <button id="benchmarks-date-clear" class="btn-clear" title="Clear date filter">&times;</button>
-                </div>
+                <label class="date-label">From</label>
+                <input type="date" id="benchmarks-date-from" class="date-input">
+                <label class="date-label">To</label>
+                <input type="date" id="benchmarks-date-to" class="date-input">
+                <button id="benchmarks-filter-btn" class="btn-filter">Filter</button>
+                <button id="benchmarks-date-clear" class="btn-clear" title="Clear filters">&times;</button>
             </div>
             <div class="table-container">
                 <table id="benchmarks-table" class="sortable">
@@ -118,16 +118,16 @@
             <h2>Tournament History</h2>
             <p class="section-desc">
                 Chronological record of all benchmark and tournament runs.
+                Click column headers to sort.
             </p>
             <div class="toolbar">
                 <input type="text" id="history-search" class="search-input" placeholder="Search name, source, map...">
-                <div class="date-filter">
-                    <label>From</label>
-                    <input type="date" id="history-date-from" class="date-input">
-                    <label>To</label>
-                    <input type="date" id="history-date-to" class="date-input">
-                    <button id="history-date-clear" class="btn-clear" title="Clear date filter">&times;</button>
-                </div>
+                <label class="date-label">From</label>
+                <input type="date" id="history-date-from" class="date-input">
+                <label class="date-label">To</label>
+                <input type="date" id="history-date-to" class="date-input">
+                <button id="history-filter-btn" class="btn-filter">Filter</button>
+                <button id="history-date-clear" class="btn-clear" title="Clear filters">&times;</button>
             </div>
             <div class="table-container">
                 <table id="history-table" class="sortable">
