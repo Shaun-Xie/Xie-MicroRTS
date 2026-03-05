@@ -2,7 +2,7 @@
 
 Best benchmark score per model across all runs.
 
-*Generated: 2026-03-05 21:02*
+*Generated: 2026-03-05 22:24*
 
 ## Rankings
 
@@ -27,16 +27,17 @@ Best benchmark score per model across all runs.
 | 17 | Example Team | **54.0** | D | WorkerRush | 1W/0D/0L | 1W/0D/0L | 1W/0D/0L | 0W/0D/1L | -- | -- |
 | 18 | gemini-2.5-flash | **50.0** | D | cleared all | 0W/1D/0L | - | - | 0W/1D/0L | - | - |
 | 19 | llama3.2 (Search+LLM) | **36.0** | F | LightRush | 1W/0D/0L | 1W/0D/0L | 0W/0D/1L | -- | -- | -- |
-| 20 | jmurr | **11.0** | F | HeavyRush | 1W/0D/0L | 0W/0D/1L | -- | -- | -- | -- |
-| 21 | gemini-2.5-flash (PureLLM) | **5.0** | F | RandomBiasedAI | 0W/1D/0L | -- | -- | -- | -- | -- |
-| 22 | Nick MCTS | **5.0** | F | RandomBiasedAI | 0W/1D/0L | -- | -- | -- | -- | -- |
-| 23 | PenguinBot | **5.0** | F | RandomBiasedAI | 0W/1D/0L | -- | -- | -- | -- | -- |
-| 24 | llama3.1:8b | **0.0** | F | cleared all | 0W/0D/1L | - | - | 0W/0D/1L | - | - |
-| 25 | qwen3:4b | **0.0** | F | cleared all | 0W/0D/1L | - | - | 0W/0D/1L | - | - |
-| 26 | llama3.1:8b (PureLLM) | **0.0** | F | RandomBiasedAI | 0W/0D/1L | -- | -- | -- | -- | -- |
-| 27 | qwen3:4b (PureLLM) | **0.0** | F | RandomBiasedAI | 0W/0D/1L | -- | -- | -- | -- | -- |
-| 28 | xiebot | **0.0** | F | RandomBiasedAI | 0W/0D/1L | -- | -- | -- | -- | -- |
-| 29 | yebot | **0.0** | F | RandomBiasedAI | 0W/0D/1L | -- | -- | -- | -- | -- |
+| 20 | PenguinBot v2 (Search+LLM) | **22.0** | F | HeavyRush | 1W/0D/0L | 0W/1D/0L | -- | -- | -- | -- |
+| 21 | jmurr | **11.0** | F | HeavyRush | 1W/0D/0L | 0W/0D/1L | -- | -- | -- | -- |
+| 22 | gemini-2.5-flash (PureLLM) | **5.0** | F | RandomBiasedAI | 0W/1D/0L | -- | -- | -- | -- | -- |
+| 23 | Nick MCTS | **5.0** | F | RandomBiasedAI | 0W/1D/0L | -- | -- | -- | -- | -- |
+| 24 | PenguinBot | **5.0** | F | RandomBiasedAI | 0W/1D/0L | -- | -- | -- | -- | -- |
+| 25 | llama3.1:8b | **0.0** | F | cleared all | 0W/0D/1L | - | - | 0W/0D/1L | - | - |
+| 26 | qwen3:4b | **0.0** | F | cleared all | 0W/0D/1L | - | - | 0W/0D/1L | - | - |
+| 27 | llama3.1:8b (PureLLM) | **0.0** | F | RandomBiasedAI | 0W/0D/1L | -- | -- | -- | -- | -- |
+| 28 | qwen3:4b (PureLLM) | **0.0** | F | RandomBiasedAI | 0W/0D/1L | -- | -- | -- | -- | -- |
+| 29 | xiebot | **0.0** | F | RandomBiasedAI | 0W/0D/1L | -- | -- | -- | -- | -- |
+| 30 | yebot | **0.0** | F | RandomBiasedAI | 0W/0D/1L | -- | -- | -- | -- | -- |
 
 ---
 
@@ -352,6 +353,20 @@ Best benchmark score per model across all runs.
 | RandomBiasedAI | 1 | 0 | 0 | 12.0 |
 | HeavyRush | 1 | 0 | 0 | 24.0 |
 | LightRush | 0 | 0 | 1 | 0.0 |
+
+### PenguinBot v2 (Search+LLM) - 22.0 pts (F -- eliminated at HeavyRush)
+
+- **Date:** 2026-03-05
+- **Arena version:** v2.0
+- **Format:** single-elimination
+- **Map:** `maps/8x8/basesWorkers8x8.xml`
+- **Games per matchup:** 1
+- **Source:** `benchmark_2026-03-05_22-24.json`
+
+| Opponent | W | D | L | Weighted Pts |
+|----------|---|---|---|-------------|
+| RandomBiasedAI | 1 | 0 | 0 | 12.0 |
+| HeavyRush | 0 | 1 | 0 | 10.0 |
 
 ### jmurr - 11.0 pts (F -- eliminated at HeavyRush)
 

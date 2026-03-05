@@ -1,5 +1,5 @@
 {
-  "generated": "2026-03-05T21:02:06.771670",
+  "generated": "2026-03-05T22:24:47.514680",
   "description": "Best benchmark score per model across all runs",
   "entries": [
     {
@@ -844,6 +844,34 @@
         }
       },
       "source_file": "benchmark_2026-02-05_04-58.json"
+    },
+    {
+      "model": "PenguinBot v2 (Search+LLM)",
+      "score": 22.0,
+      "grade": "F",
+      "version": "2.0",
+      "format": "single-elimination",
+      "eliminated_at": "HeavyRush",
+      "date": "2026-03-05T22:24:38.903421",
+      "map": "maps/8x8/basesWorkers8x8.xml",
+      "games_per_matchup": 1,
+      "opponents": {
+        "RandomBiasedAI": {
+          "wins": 1,
+          "draws": 0,
+          "losses": 0,
+          "avg_game_score": 1.2,
+          "weighted_points": 12.0
+        },
+        "HeavyRush": {
+          "wins": 0,
+          "draws": 1,
+          "losses": 0,
+          "avg_game_score": 0.5,
+          "weighted_points": 10.0
+        }
+      },
+      "source_file": "benchmark_2026-03-05_22-24.json"
     },
     {
       "model": "jmurr",
