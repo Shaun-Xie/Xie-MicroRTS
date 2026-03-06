@@ -254,12 +254,18 @@
             border: 1px solid var(--border);
             border-left: 3px solid var(--accent);
             border-radius: 6px;
-            padding: 0.75rem 1rem;
             margin-bottom: 1.5rem;
             font-size: 0.85rem;
             color: var(--text-secondary);
             line-height: 1.5;
         }
+        .tip-box summary {
+            padding: 0.75rem 1rem;
+            cursor: pointer;
+            user-select: none;
+        }
+        .tip-box summary:hover { color: var(--text-primary); }
+        .tip-box .tip-body { padding: 0 1rem 0.75rem; }
         .tip-box code { color: var(--accent); font-size: 0.8rem; }
 
         /* Replay viewer */
@@ -389,14 +395,16 @@
             <a href="https://github.com/drchangliu/MicroRTS/blob/master/tournament/match_server.py" style="color: var(--accent); font-size: 0.8rem; margin-left: auto; text-decoration: none;">match_server.py</a>
         </div>
 
-        <div class="tip-box" id="server-tip">
-            <strong>Getting started:</strong> The match server runs locally on your machine.
-            <pre style="margin: 0.5rem 0 0; background: var(--bg-primary); padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.8rem; overflow-x: auto;"><code>git clone https://github.com/drchangliu/MicroRTS.git
+        <details class="tip-box" id="server-tip" open>
+            <summary><strong>Getting started:</strong> How to run the match server</summary>
+            <div class="tip-body">
+                <pre style="margin: 0 0 0.5rem; background: var(--bg-primary); padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.8rem; overflow-x: auto;"><code>git clone https://github.com/drchangliu/MicroRTS.git
 cd MicroRTS
 ant build            <span style="color:var(--text-muted)"># or: find src -name '*.java' > sources.list && javac -cp "lib/*:bin" -d bin @sources.list</span>
 python3 tournament/match_server.py --port 8080</code></pre>
-            <span style="font-size: 0.8rem; color: var(--text-muted);">Then open <code style="background:var(--bg-primary);padding:0.1rem 0.3rem;border-radius:3px;">http://localhost:8080/match.html</code> in your browser.</span>
-        </div>
+                <span style="font-size: 0.8rem; color: var(--text-muted);">Then open <code style="background:var(--bg-primary);padding:0.1rem 0.3rem;border-radius:3px;">http://localhost:8080/match.html</code> in your browser.</span>
+            </div>
+        </details>
 
         <div class="match-grid">
             <div class="player-panel p1">
@@ -585,6 +593,8 @@ python3 tournament/match_server.py --port 8080</code></pre>
                     serverStatusText.textContent = 'Connected';
                     populateAgents(data.agents);
                     btnFight.disabled = false;
+                    // Collapse tip box once connected
+                    document.getElementById('server-tip').removeAttribute('open');
                     // Also load maps
                     return fetch(getServerUrl() + '/api/maps');
                 })
