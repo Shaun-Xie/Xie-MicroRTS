@@ -1,5 +1,5 @@
 {
-  "generated": "2026-03-17T22:22:15.965025",
+  "generated": "2026-03-17T23:59:20.396397",
   "anchors": [
     "RandomBiasedAI",
     "HeavyRush",
@@ -421,7 +421,7 @@
           "weighted_points": 10.0
         }
       },
-      "last_updated": "2026-03-17T22:06:40.585032"
+      "last_updated": "2026-03-17T23:55:41.910283"
     },
     {
       "source": "benchmark",
@@ -1505,6 +1505,100 @@
     }
   ],
   "history": [
+    {
+      "display_name": "HOPE",
+      "score": 33.2,
+      "grade": "F",
+      "date": "2026-03-17T23:55:41.910283",
+      "source": "tournament",
+      "map": "maps/8x8/basesWorkers8x8.xml, maps/16x16/basesWorkers16x16.xml",
+      "agent_class": "ai.abstraction.submissions.hope.hope",
+      "opponents": {
+        "RandomBiasedAI": {
+          "wins": 1,
+          "draws": 1,
+          "losses": 0,
+          "weighted_points": 8.5,
+          "avg_game_score": 0.85
+        },
+        "HeavyRush": {
+          "wins": 1,
+          "draws": 0,
+          "losses": 0,
+          "weighted_points": 24.0,
+          "avg_game_score": 1.2
+        },
+        "LightRush": {
+          "wins": 1,
+          "draws": 0,
+          "losses": 0,
+          "weighted_points": 18.0,
+          "avg_game_score": 1.2
+        },
+        "WorkerRush": {
+          "wins": 0,
+          "draws": 1,
+          "losses": 0,
+          "weighted_points": 7.5,
+          "avg_game_score": 0.5
+        }
+      },
+      "map_scores": {
+        "8x8": {
+          "map": "maps/8x8/basesWorkers8x8.xml",
+          "max_cycles": 1500,
+          "score": 61.5,
+          "grade": "C",
+          "eliminated_at": "WorkerRush",
+          "opponents": {
+            "RandomBiasedAI": {
+              "wins": 1,
+              "draws": 0,
+              "losses": 0,
+              "avg_game_score": 1.2,
+              "weighted_points": 12.0
+            },
+            "HeavyRush": {
+              "wins": 1,
+              "draws": 0,
+              "losses": 0,
+              "avg_game_score": 1.2,
+              "weighted_points": 24.0
+            },
+            "LightRush": {
+              "wins": 1,
+              "draws": 0,
+              "losses": 0,
+              "avg_game_score": 1.2,
+              "weighted_points": 18.0
+            },
+            "WorkerRush": {
+              "wins": 0,
+              "draws": 1,
+              "losses": 0,
+              "avg_game_score": 0.5,
+              "weighted_points": 7.5
+            }
+          }
+        },
+        "16x16": {
+          "map": "maps/16x16/basesWorkers16x16.xml",
+          "max_cycles": 3000,
+          "score": 5.0,
+          "grade": "F",
+          "eliminated_at": "RandomBiasedAI",
+          "opponents": {
+            "RandomBiasedAI": {
+              "wins": 0,
+              "draws": 1,
+              "losses": 0,
+              "avg_game_score": 0.5,
+              "weighted_points": 5.0
+            }
+          }
+        }
+      }
+    },
     {
       "display_name": "Mayari-LLM",
       "score": 87.0,
