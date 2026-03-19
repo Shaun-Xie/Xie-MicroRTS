@@ -3,6 +3,7 @@ package ai.mcts.submissions.penguin_bot;
 import ai.abstraction.HeavyRush;
 import ai.abstraction.RangedRush;
 import ai.abstraction.WorkerDefense;
+import ai.abstraction.WorkerRush;
 import ai.core.AI;
 import ai.core.ParameterSpecification;
 import ai.evaluation.SimpleSqrtEvaluationFunction3;
@@ -72,10 +73,12 @@ public class MCTSAgent extends NaiveMCTS {
     private final HeavyRush heavyRushPolicy;
     private final RangedRush rangedRushPolicy;
     private final WorkerDefense workerDefensePolicy;
+    private final WorkerRush workerRushPolicy;
 
     private int lastConsultTick = -9999;
     private int activePlayer = 0;
     private boolean openingComplete = false;
+    private boolean finishMode = false;
 
     private Stance currentStance = Stance.DEFEND;
     private String preferredUnit = "RANGED";
@@ -93,6 +96,7 @@ public class MCTSAgent extends NaiveMCTS {
         this.heavyRushPolicy = new HeavyRush(utt);
         this.rangedRushPolicy = new RangedRush(utt);
         this.workerDefensePolicy = new WorkerDefense(utt);
+        this.workerRushPolicy = new WorkerRush(utt);
         preferredActions.add("PRODUCE_HEAVY");
         preferredActions.add("PRODUCE_RANGED");
         preferredActions.add("DEFEND_BASE");
@@ -110,18 +114,30 @@ public class MCTSAgent extends NaiveMCTS {
 
         applyDeterministicStrategy(player, gs);
 
-        int consultInterval = isGettingRushed(player, gs) ? Math.max(10, LLM_INTERVAL / 4) : LLM_INTERVAL;
-        if (gs.getTime() - lastConsultTick >= consultInterval) {
-            consultOllama(player, gs);
-            lastConsultTick = gs.getTime();
+        if (!finishMode) {
+            int consultInterval = isGettingRushed(player, gs) ? Math.max(10, LLM_INTERVAL / 4) : LLM_INTERVAL;
+            if (gs.getTime() - lastConsultTick >= consultInterval) {
+                consultOllama(player, gs);
+                lastConsultTick = gs.getTime();
+            }
         }
 
         applyDeterministicStrategy(player, gs);
         applyStanceBiases();
+        if (finishMode) {
+            PlayerAction finisher = getFinishModeAction(player, gs);
+            if (finisher != null && !finisher.isEmpty()) {
+                return finisher;
+            }
+        }
         try {
             return super.getAction(player, gs);
         } catch (RuntimeException ex) {
             try {
+                if (finishMode) {
+                    PlayerAction finisher = getFinishModeAction(player, gs);
+                    if (finisher != null) return finisher;
+                }
                 if (currentStance == Stance.ATTACK) {
                     return "HEAVY".equals(preferredUnit)
                             ? heavyRushPolicy.getAction(player, gs)
@@ -286,8 +302,15 @@ public class MCTSAgent extends NaiveMCTS {
         int enemyHeavy = countUnits(enemy, gs, "Heavy");
         int myBarracks = countUnits(player, gs, "Barracks");
         int enemyBarracks = countUnits(enemy, gs, "Barracks");
+        int enemyBases = countUnits(enemy, gs, "Base");
         int myCombat = countMyCombatUnits(player, gs);
         int enemyCombat = countMyCombatUnits(enemy, gs);
+
+        updateFinishMode(player, gs, myCombat, enemyCombat, myWorkers, enemyWorkers, enemyBarracks, enemyBases);
+        if (finishMode) {
+            currentStance = Stance.ATTACK;
+            preferredReason = "Finish mode: force aggressive cleanup after decisive lead";
+        }
 
         boolean underAttack = isGettingRushed(player, gs);
         boolean enemyCollapsed = enemyBarracks == 0 && enemyCombat == 0 && enemyWorkers <= 1;
@@ -297,7 +320,7 @@ public class MCTSAgent extends NaiveMCTS {
         boolean forceAttack = enemyCollapsed || strongCombatLead || structuralLead || economySnowball;
         boolean forceDefend = underAttack && !forceAttack && myCombat <= enemyCombat;
 
-        if (forceAttack) {
+        if (finishMode || forceAttack) {
             currentStance = Stance.ATTACK;
             preferredReason = "Deterministic attack trigger from decisive board advantage";
         } else if (forceDefend) {
@@ -311,6 +334,41 @@ public class MCTSAgent extends NaiveMCTS {
             preferredUnit = "RANGED";
         } else {
             preferredUnit = myRanged <= myHeavy ? "RANGED" : "HEAVY";
+        }
+    }
+
+    private void updateFinishMode(int player, GameState gs, int myCombat, int enemyCombat,
+                                  int myWorkers, int enemyWorkers, int enemyBarracks, int enemyBases) {
+        boolean enemyArmyGone = enemyBarracks == 0 && enemyCombat == 0;
+        boolean enemyStillAlive = enemyWorkers > 0 || enemyBases > 0;
+        boolean militaryCleanupReady = myCombat >= Math.max(1, enemyCombat + 1);
+        boolean workerCleanupReady = myCombat == 0 && myWorkers >= Math.max(3, enemyWorkers + 2);
+
+        if (!finishMode && enemyArmyGone && enemyStillAlive && (militaryCleanupReady || workerCleanupReady)) {
+            finishMode = true;
+            return;
+        }
+
+        if (finishMode && (!enemyStillAlive || !gs.canExecuteAnyAction(player))) {
+            finishMode = false;
+            return;
+        }
+
+        if (finishMode && enemyBarracks > 0 && enemyCombat > myCombat) {
+            finishMode = false;
+        }
+    }
+
+    private PlayerAction getFinishModeAction(int player, GameState gs) {
+        try {
+            if (countMyCombatUnits(player, gs) > 0) {
+                return "HEAVY".equals(preferredUnit)
+                        ? heavyRushPolicy.getAction(player, gs)
+                        : rangedRushPolicy.getAction(player, gs);
+            }
+            return workerRushPolicy.getAction(player, gs);
+        } catch (RuntimeException ex) {
+            return new PlayerAction();
         }
     }
 
@@ -645,6 +703,22 @@ public class MCTSAgent extends NaiveMCTS {
 
     private void applyStanceBiases() {
         preferredActions.clear();
+
+        if (finishMode) {
+            MAXSIMULATIONTIME = 140;
+            MAX_TREE_DEPTH = 10;
+            initial_epsilon_0 = 0.62f;
+            initial_epsilon_l = 0.25f;
+            initial_epsilon_g = 0.0f;
+            playoutPolicy = "HEAVY".equals(preferredUnit) ? heavyRushPolicy : rangedRushPolicy;
+            Collections.addAll(preferredActions,
+                    "ATTACK_NEAR_BASE",
+                    "ADVANCE",
+                    "PRODUCE_RANGED",
+                    "PRODUCE_HEAVY",
+                    "PRODUCE_" + preferredUnit);
+            return;
+        }
 
         if (currentStance == Stance.DEFEND) {
             MAXSIMULATIONTIME = 110;
@@ -1028,6 +1102,7 @@ public class MCTSAgent extends NaiveMCTS {
         cloned.preferredActions = new HashSet<>(preferredActions);
         cloned.activePlayer = activePlayer;
         cloned.openingComplete = openingComplete;
+        cloned.finishMode = finishMode;
         cloned.playoutPolicy = "HEAVY".equals(preferredUnit) ? cloned.heavyRushPolicy : cloned.rangedRushPolicy;
         return cloned;
     }
