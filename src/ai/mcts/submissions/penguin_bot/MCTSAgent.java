@@ -3,7 +3,6 @@ package ai.mcts.submissions.penguin_bot;
 import ai.abstraction.HeavyRush;
 import ai.abstraction.RangedRush;
 import ai.abstraction.WorkerDefense;
-import ai.abstraction.WorkerRush;
 import ai.core.AI;
 import ai.core.ParameterSpecification;
 import ai.evaluation.SimpleSqrtEvaluationFunction3;
@@ -25,6 +24,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import rts.GameState;
 import rts.PlayerAction;
 import rts.ResourceUsage;
@@ -35,18 +36,6 @@ import rts.units.UnitType;
 import rts.units.UnitTypeTable;
 import util.Pair;
 
-/**
- * PenguinBot MCTS agent.
- *
- * <p>Architecture summary:
- *
- * <p>1) Opening book (deterministic macro build + WorkerDefense fill-ins)
- * <p>2) Deterministic strategic assessment (force ATTACK/DEFEND on clear triggers)
- * <p>3) Optional LLM strategy advice (stance + preferred unit + optional worker-rush toggle)
- * <p>4) Stance-conditioned MCTS biasing and action selection
- * <p>5) Endgame finish mode to force cleanup and avoid stalling
- * <p>6) Runtime fallbacks to scripted policies if search fails
- */
 public class MCTSAgent extends NaiveMCTS {
 
     private enum Stance {
@@ -61,54 +50,38 @@ public class MCTSAgent extends NaiveMCTS {
         NEUTRAL
     }
 
-    private static final int OPENING_END_TICK_DEFAULT = 360;
-    private static final int OPENING_WORKERS_BEFORE_BARRACKS_DEFAULT = 1;
-    private static final int OPENING_WORKER_TARGET_DEFAULT = 4;
-    private static final int OPENING_RANGED_TARGET_DEFAULT = 1;
-    private static final int OPENING_HEAVY_TARGET_DEFAULT = 1;
+    private static final int OPENING_END_TICK = 360;
+    private static final int OPENING_WORKERS_BEFORE_BARRACKS = 1;
+    private static final int OPENING_WORKER_TARGET = 4;
+    private static final int OPENING_RANGED_TARGET = 1;
+    private static final int OPENING_HEAVY_TARGET = 1;
 
-    private static final int RUSH_ALERT_RADIUS_DEFAULT = 7;
-    private static final int BASE_DEFENSE_RADIUS_DEFAULT = 4;
-    private static final int LLM_INTERVAL = getEnvInt("MCTS_LLM_INTERVAL", 60);
-    private static final boolean LLM_ENABLED =
-            Boolean.parseBoolean(System.getenv().getOrDefault("MCTS_ENABLE_LLM", "true"));
-    private static final int OLLAMA_CONNECT_TIMEOUT_MS =
-            getEnvInt("OLLAMA_CONNECT_TIMEOUT_MS", 40);
-    private static final int OLLAMA_READ_TIMEOUT_MS =
-            getEnvInt("OLLAMA_READ_TIMEOUT_MS", 80);
-    private static final int LLM_PREFERRED_UNIT_HOLD_TICKS =
-            getEnvInt("MCTS_LLM_PREFERRED_UNIT_HOLD_TICKS", 180);
+    private static final int RUSH_ALERT_RADIUS = 7;
+    private static final int BASE_DEFENSE_RADIUS = 4;
+    private static final int LLM_INTERVAL =
+            Integer.parseInt(System.getenv().getOrDefault("MCTS_LLM_INTERVAL", "60"));
     private static final String OLLAMA_HOST =
             System.getenv().getOrDefault("OLLAMA_HOST", "http://localhost:11434");
     private static final String MODEL =
             System.getenv().getOrDefault("OLLAMA_MODEL", "llama3.1:8b");
     private static final String FALLBACK_MODELS_CSV =
             System.getenv().getOrDefault("OLLAMA_FALLBACK_MODELS", "llama3.2:3b,mistral:7b,qwen2.5:7b");
+    private static final Pattern JSON_OBJECT = Pattern.compile("\\{.*\\}", Pattern.DOTALL);
 
     private final UnitTypeTable utt;
     private final HeavyRush heavyRushPolicy;
     private final RangedRush rangedRushPolicy;
     private final WorkerDefense workerDefensePolicy;
-    private final WorkerRush workerRushPolicy;
 
     private int lastConsultTick = -9999;
     private int activePlayer = 0;
     private boolean openingComplete = false;
-    private boolean finishMode = false;
-    private boolean llmWorkerRushMode = false;
-    private boolean llmTinyMapPlanResolved = false;
 
     private Stance currentStance = Stance.DEFEND;
     private String preferredUnit = "RANGED";
     private String preferredReason = "Defensive opening";
     private Set<String> preferredActions = new HashSet<>();
     private String resolvedOllamaModel = null;
-    private String llmPreferredUnitOverride = null;
-    private int llmPreferredUnitOverrideUntil = -1;
-    private volatile boolean llmRequestInFlight = false;
-    private volatile String pendingLlmResponse = null;
-    private volatile int pendingLlmResponseTick = -1;
-    private int llmRequestGeneration = 0;
 
     public MCTSAgent(UnitTypeTable utt) {
         super(120, -1, 105, 10,
@@ -120,77 +93,35 @@ public class MCTSAgent extends NaiveMCTS {
         this.heavyRushPolicy = new HeavyRush(utt);
         this.rangedRushPolicy = new RangedRush(utt);
         this.workerDefensePolicy = new WorkerDefense(utt);
-        this.workerRushPolicy = new WorkerRush(utt);
         preferredActions.add("PRODUCE_HEAVY");
         preferredActions.add("PRODUCE_RANGED");
         preferredActions.add("DEFEND_BASE");
     }
 
-    /**
-     * Main decision pipeline for one game tick.
-     *
-     * <p>Order matters:
-     *
-     * <p>- tiny-map LLM worker-rush policy check
-     * <p>- opening book (if not completed)
-     * <p>- deterministic stance update
-     * <p>- periodic LLM consult (unless finish mode is active)
-     * <p>- stance bias application
-     * <p>- finish-mode shortcut or MCTS action
-     * <p>- scripted fallback on runtime errors
-     */
     @Override
     public PlayerAction getAction(int player, GameState gs) throws Exception {
         if (!gs.canExecuteAnyAction(player)) return new PlayerAction();
         activePlayer = player;
-        applyPendingOllamaResponse();
 
-        if (isEightByEightMap(gs) && !llmTinyMapPlanResolved) {
-            scheduleOllamaConsult(player, gs, true);
-            llmTinyMapPlanResolved = true;
-        }
-        if (!isEightByEightMap(gs)) {
-            llmWorkerRushMode = false;
-        }
-        if (llmWorkerRushMode) {
-            openingComplete = true;
-            currentStance = Stance.ATTACK;
-            preferredReason = "LLM tiny-map policy: worker rush";
-            try {
-                return workerRushPolicy.getAction(player, gs);
-            } catch (RuntimeException ex) {
-                return new PlayerAction();
-            }
-        }
-
-        if (!openingComplete && (gs.getTime() < openingEndTick(gs) || !openingGoalsMet(player, gs))) {
+        if (!openingComplete && (gs.getTime() < OPENING_END_TICK || !openingGoalsMet(player, gs))) {
             return openingAction(player, gs);
         }
         openingComplete = true;
 
         applyDeterministicStrategy(player, gs);
 
-        if (!finishMode) {
-            scheduleOllamaConsult(player, gs, false);
+        int consultInterval = isGettingRushed(player, gs) ? Math.max(10, LLM_INTERVAL / 4) : LLM_INTERVAL;
+        if (gs.getTime() - lastConsultTick >= consultInterval) {
+            consultOllama(player, gs);
+            lastConsultTick = gs.getTime();
         }
 
-        applyPendingOllamaResponse();
         applyDeterministicStrategy(player, gs);
         applyStanceBiases();
-        if (finishMode) {
-            PlayerAction finisher = getFinishModeAction(player, gs);
-            if (finisher != null && !finisher.isEmpty()) {
-                return finisher;
-            }
-        }
         try {
             return super.getAction(player, gs);
         } catch (RuntimeException ex) {
             try {
-                if (finishMode) {
-                    PlayerAction finisher = getFinishModeAction(player, gs);
-                    if (finisher != null) return finisher;
-                }
                 if (currentStance == Stance.ATTACK) {
                     return "HEAVY".equals(preferredUnit)
                             ? heavyRushPolicy.getAction(player, gs)
@@ -203,16 +134,6 @@ public class MCTSAgent extends NaiveMCTS {
         }
     }
 
-    /**
-     * Deterministic opening book.
-     *
-     * <p>Policy goals:
-     *
-     * <p>- secure early workers
-     * <p>- get first barracks safely
-     * <p>- reach economy + seed military thresholds
-     * <p>- borrow WorkerDefense for unassigned units while preventing production conflicts
-     */
     private PlayerAction openingAction(int player, GameState gs) throws Exception {
         currentStance = Stance.DEFEND;
         applyStanceBiases();
@@ -249,7 +170,7 @@ public class MCTSAgent extends NaiveMCTS {
         out.setResourceUsage(new ResourceUsage());
         Set<Long> assigned = new HashSet<>();
 
-        boolean prioritizeWorkers = workerCount < openingWorkersBeforeBarracks(gs);
+        boolean prioritizeWorkers = workerCount < OPENING_WORKERS_BEFORE_BARRACKS;
         if (prioritizeWorkers) {
             for (Unit base : myBases) {
                 if (gs.getActionAssignment(base) != null || assigned.contains(base.getID())) continue;
@@ -288,7 +209,7 @@ public class MCTSAgent extends NaiveMCTS {
             }
         }
 
-        if (workerCount < openingWorkerTarget(gs)) {
+        if (workerCount < OPENING_WORKER_TARGET) {
             for (Unit base : myBases) {
                 if (gs.getActionAssignment(base) != null || assigned.contains(base.getID())) continue;
                 if (!canAffordUnitTypeNow(player, workerType, out, gs)) break;
@@ -304,14 +225,14 @@ public class MCTSAgent extends NaiveMCTS {
         if (barracksReady) {
             for (Unit barracks : myBarracks) {
                 if (gs.getActionAssignment(barracks) != null || assigned.contains(barracks.getID())) continue;
-                if (rangedCount < openingRangedTarget(gs)) {
+                if (rangedCount < OPENING_RANGED_TARGET) {
                     if (!canAffordUnitTypeNow(player, rangedType, out, gs)) continue;
                     UnitAction trainRanged = findProduceAction(barracks, rangedType, gs);
                     if (addIfConsistent(out, barracks, trainRanged, gs)) {
                         assigned.add(barracks.getID());
                         rangedCount++;
                     }
-                } else if (heavyCount < openingHeavyTarget(gs)) {
+                } else if (heavyCount < OPENING_HEAVY_TARGET) {
                     if (!canAffordUnitTypeNow(player, heavyType, out, gs)) continue;
                     UnitAction trainHeavy = findProduceAction(barracks, heavyType, gs);
                     if (addIfConsistent(out, barracks, trainHeavy, gs)) {
@@ -355,12 +276,6 @@ public class MCTSAgent extends NaiveMCTS {
         return out;
     }
 
-    /**
-     * Rule-based strategic override layer that sets global stance and preferred combat unit.
-     *
-     * <p>This runs before and after LLM consultation so deterministic safety constraints
-     * remain authoritative when game-state triggers are decisive.
-     */
     private void applyDeterministicStrategy(int player, GameState gs) {
         int enemy = 1 - player;
         int myWorkers = countUnits(player, gs, "Worker");
@@ -371,15 +286,8 @@ public class MCTSAgent extends NaiveMCTS {
         int enemyHeavy = countUnits(enemy, gs, "Heavy");
         int myBarracks = countUnits(player, gs, "Barracks");
         int enemyBarracks = countUnits(enemy, gs, "Barracks");
-        int enemyBases = countUnits(enemy, gs, "Base");
         int myCombat = countMyCombatUnits(player, gs);
         int enemyCombat = countMyCombatUnits(enemy, gs);
-
-        updateFinishMode(player, gs, myCombat, enemyCombat, myWorkers, enemyWorkers, enemyBarracks, enemyBases);
-        if (finishMode) {
-            currentStance = Stance.ATTACK;
-            preferredReason = "Finish mode: force aggressive cleanup after decisive lead";
-        }
 
         boolean underAttack = isGettingRushed(player, gs);
         boolean enemyCollapsed = enemyBarracks == 0 && enemyCombat == 0 && enemyWorkers <= 1;
@@ -389,7 +297,7 @@ public class MCTSAgent extends NaiveMCTS {
         boolean forceAttack = enemyCollapsed || strongCombatLead || structuralLead || economySnowball;
         boolean forceDefend = underAttack && !forceAttack && myCombat <= enemyCombat;
 
-        if (finishMode || forceAttack) {
+        if (forceAttack) {
             currentStance = Stance.ATTACK;
             preferredReason = "Deterministic attack trigger from decisive board advantage";
         } else if (forceDefend) {
@@ -397,65 +305,12 @@ public class MCTSAgent extends NaiveMCTS {
             preferredReason = "Deterministic defend trigger while under pressure";
         }
 
-        String deterministicUnit;
         if (enemyRanged > enemyHeavy + 1) {
-            deterministicUnit = "HEAVY";
+            preferredUnit = "HEAVY";
         } else if (enemyHeavy > enemyRanged + 1) {
-            deterministicUnit = "RANGED";
+            preferredUnit = "RANGED";
         } else {
-            deterministicUnit = myRanged <= myHeavy ? "RANGED" : "HEAVY";
-        }
-
-        if (isLlmPreferredUnitActive(gs.getTime())) {
-            preferredUnit = llmPreferredUnitOverride;
-        } else {
-            llmPreferredUnitOverride = null;
-            llmPreferredUnitOverrideUntil = -1;
-            preferredUnit = deterministicUnit;
-        }
-    }
-
-    /**
-     * Latches (and clears) finish mode.
-     *
-     * <p>Finish mode is entered when the opponent has no meaningful army production/pressure left
-     * but still has remaining units/buildings to clean up.
-     */
-    private void updateFinishMode(int player, GameState gs, int myCombat, int enemyCombat,
-                                  int myWorkers, int enemyWorkers, int enemyBarracks, int enemyBases) {
-        boolean enemyArmyGone = enemyBarracks == 0 && enemyCombat == 0;
-        boolean enemyStillAlive = enemyWorkers > 0 || enemyBases > 0;
-        boolean militaryCleanupReady = myCombat >= Math.max(1, enemyCombat + 1);
-        boolean workerCleanupReady = myCombat == 0 && myWorkers >= Math.max(3, enemyWorkers + 2);
-
-        if (!finishMode && enemyArmyGone && enemyStillAlive && (militaryCleanupReady || workerCleanupReady)) {
-            finishMode = true;
-            return;
-        }
-
-        if (finishMode && (!enemyStillAlive || !gs.canExecuteAnyAction(player))) {
-            finishMode = false;
-            return;
-        }
-
-        if (finishMode && enemyBarracks > 0 && enemyCombat > myCombat) {
-            finishMode = false;
-        }
-    }
-
-    /**
-     * Returns a direct scripted cleanup policy used during finish mode.
-     */
-    private PlayerAction getFinishModeAction(int player, GameState gs) {
-        try {
-            if (countMyCombatUnits(player, gs) > 0) {
-                return "HEAVY".equals(preferredUnit)
-                        ? heavyRushPolicy.getAction(player, gs)
-                        : rangedRushPolicy.getAction(player, gs);
-            }
-            return workerRushPolicy.getAction(player, gs);
-        } catch (RuntimeException ex) {
-            return new PlayerAction();
+            preferredUnit = myRanged <= myHeavy ? "RANGED" : "HEAVY";
         }
     }
 
@@ -493,63 +348,15 @@ public class MCTSAgent extends NaiveMCTS {
         return false;
     }
 
-    private void scheduleOllamaConsult(int player, GameState gs, boolean force) {
-        if (!LLM_ENABLED || finishMode) return;
-        if (gs == null) return;
-
-        int consultInterval = isGettingRushed(player, gs) ? Math.max(10, LLM_INTERVAL / 4) : LLM_INTERVAL;
-        if (!force && gs.getTime() - lastConsultTick < consultInterval) return;
-
-        final int requestTick = gs.getTime();
-        final String prompt = buildPrompt(player, gs);
-        final int generation;
-        synchronized (this) {
-            if (llmRequestInFlight) return;
-            llmRequestInFlight = true;
-            generation = llmRequestGeneration;
-            lastConsultTick = requestTick;
+    private void consultOllama(int player, GameState gs) {
+        try {
+            String prompt = buildPrompt(player, gs);
+            String response = callOllama(prompt);
+            parseStrategyFromResponse(response);
+        } catch (Exception ignored) {
         }
-
-        Thread worker = new Thread(() -> {
-            try {
-                String response = callOllama(prompt);
-                synchronized (MCTSAgent.this) {
-                    if (llmRequestGeneration == generation) {
-                        pendingLlmResponse = response;
-                        pendingLlmResponseTick = requestTick;
-                    }
-                }
-            } catch (Exception ignored) {
-            } finally {
-                synchronized (MCTSAgent.this) {
-                    if (llmRequestGeneration == generation) {
-                        llmRequestInFlight = false;
-                    }
-                }
-            }
-        }, "penguinbot-ollama");
-        worker.setDaemon(true);
-        worker.start();
     }
 
-    private void applyPendingOllamaResponse() {
-        String raw;
-        int tick;
-        synchronized (this) {
-            if (pendingLlmResponse == null) return;
-            raw = pendingLlmResponse;
-            tick = pendingLlmResponseTick;
-            pendingLlmResponse = null;
-            pendingLlmResponseTick = -1;
-        }
-        parseStrategyFromResponse(raw, tick >= 0 ? tick : 0);
-    }
-
-    /**
-     * Builds the strategy prompt for Ollama.
-     *
-     * <p>The LLM is asked for high-level control only (not low-level unit actions).
-     */
     private String buildPrompt(int player, GameState gs) {
         int enemy = 1 - player;
         int myCombat = 0;
@@ -608,7 +415,6 @@ public class MCTSAgent extends NaiveMCTS {
         sb.append("You are a strict stance controller for an RTS bot. Return JSON only.\n");
         sb.append("The bot has binary stances only: DEFEND or ATTACK.\n");
         sb.append("Never suggest partial/mixed behavior. Units cannot split between offense and defense.\n");
-        sb.append("If map is exactly 8x8, set worker_rush to true.\n");
         sb.append("Switch only when it is wholly necessary. If not wholly necessary, keep stance unchanged.\n");
         sb.append("State:\n");
         sb.append("- map: ").append(mapW).append("x").append(mapH).append("\n");
@@ -634,7 +440,6 @@ public class MCTSAgent extends NaiveMCTS {
         sb.append("\"target_stance\":\"DEFEND|ATTACK\",");
         sb.append("\"necessity\":\"WHOLLY_NECESSARY|NOT_NECESSARY\",");
         sb.append("\"preferred_unit\":\"HEAVY|RANGED\",");
-        sb.append("\"worker_rush\":true|false,");
         sb.append("\"reason\":\"short explanation\",");
         sb.append("\"wholly_necessary\":true|false(optional)}\n");
         sb.append("Example: ").append(example);
@@ -657,8 +462,8 @@ public class MCTSAgent extends NaiveMCTS {
         URL url = new URL(OLLAMA_HOST + "/api/generate");
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("POST");
-        conn.setConnectTimeout(OLLAMA_CONNECT_TIMEOUT_MS);
-        conn.setReadTimeout(OLLAMA_READ_TIMEOUT_MS);
+        conn.setConnectTimeout(1800);
+        conn.setReadTimeout(3200);
         conn.setDoOutput(true);
         conn.setRequestProperty("Content-Type", "application/json");
 
@@ -783,16 +588,7 @@ public class MCTSAgent extends NaiveMCTS {
         return out.toByteArray();
     }
 
-    /**
-     * Parses and applies strategic signals from LLM output.
-     *
-     * <p>Accepted signals:
-     *
-     * <p>- stance switch (only if marked wholly necessary)
-     * <p>- preferred combat unit
-     * <p>- optional worker-rush mode for tiny maps
-     */
-    private void parseStrategyFromResponse(String raw, int consultedAtTick) {
+    private void parseStrategyFromResponse(String raw) {
         JsonObject strategy = parseStrategyJson(raw);
         if (strategy == null) return;
 
@@ -822,19 +618,9 @@ public class MCTSAgent extends NaiveMCTS {
 
         if (strategy.has("preferred_unit")) {
             String v = strategy.get("preferred_unit").getAsString().toUpperCase();
-            if ("HEAVY".equals(v) || "RANGED".equals(v)) {
-                llmPreferredUnitOverride = v;
-                llmPreferredUnitOverrideUntil = consultedAtTick + LLM_PREFERRED_UNIT_HOLD_TICKS;
-                preferredUnit = v;
-            }
+            if ("HEAVY".equals(v) || "RANGED".equals(v)) preferredUnit = v;
         }
         if (strategy.has("reason")) preferredReason = strategy.get("reason").getAsString();
-        if (strategy.has("worker_rush")) {
-            llmWorkerRushMode = strategy.get("worker_rush").getAsBoolean();
-        } else if (strategy.has("strategy")) {
-            String v = strategy.get("strategy").getAsString().toUpperCase();
-            llmWorkerRushMode = "WORKER_RUSH".equals(v);
-        }
     }
 
     private JsonObject parseStrategyJson(String raw) {
@@ -847,73 +633,18 @@ public class MCTSAgent extends NaiveMCTS {
         } catch (Exception ignored) {
         }
 
-        String jsonObject = extractFirstJsonObject(trimmed);
-        if (jsonObject == null) return null;
+        Matcher m = JSON_OBJECT.matcher(trimmed);
+        if (!m.find()) return null;
         try {
-            JsonElement extracted = JsonParser.parseString(jsonObject);
+            JsonElement extracted = JsonParser.parseString(m.group());
             if (extracted.isJsonObject()) return extracted.getAsJsonObject();
         } catch (Exception ignored) {
         }
         return null;
     }
 
-    private String extractFirstJsonObject(String text) {
-        int start = -1;
-        int depth = 0;
-        boolean inString = false;
-        boolean escaped = false;
-
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (escaped) {
-                escaped = false;
-                continue;
-            }
-            if (c == '\\') {
-                escaped = true;
-                continue;
-            }
-            if (c == '"') {
-                inString = !inString;
-                continue;
-            }
-            if (inString) continue;
-            if (c == '{') {
-                if (depth == 0) start = i;
-                depth++;
-                continue;
-            }
-            if (c == '}' && depth > 0) {
-                depth--;
-                if (depth == 0 && start >= 0) {
-                    return text.substring(start, i + 1);
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Applies stance-dependent MCTS parameterization and preferred action categories.
-     */
     private void applyStanceBiases() {
         preferredActions.clear();
-
-        if (finishMode) {
-            MAXSIMULATIONTIME = 140;
-            MAX_TREE_DEPTH = 10;
-            initial_epsilon_0 = 0.62f;
-            initial_epsilon_l = 0.25f;
-            initial_epsilon_g = 0.0f;
-            playoutPolicy = "HEAVY".equals(preferredUnit) ? heavyRushPolicy : rangedRushPolicy;
-            Collections.addAll(preferredActions,
-                    "ATTACK_NEAR_BASE",
-                    "ADVANCE",
-                    "PRODUCE_RANGED",
-                    "PRODUCE_HEAVY",
-                    "PRODUCE_" + preferredUnit);
-            return;
-        }
 
         if (currentStance == Stance.DEFEND) {
             MAXSIMULATIONTIME = 110;
@@ -948,10 +679,6 @@ public class MCTSAgent extends NaiveMCTS {
                 "PRODUCE_WORKER");
     }
 
-    /**
-     * Selects the final action from MCTS children using a combined score:
-     * visit count + preference score + average evaluation.
-     */
     @Override
     public int getMostVisitedActionIdx() {
         total_actions_issued++;
@@ -979,9 +706,6 @@ public class MCTSAgent extends NaiveMCTS {
         return bestIdx;
     }
 
-    /**
-     * Scores an action according to current stance intent and production priorities.
-     */
     private int preferenceScore(PlayerAction pa) {
         if (pa == null || preferredActions.isEmpty()) return 0;
         int score = 0;
@@ -1012,7 +736,7 @@ public class MCTSAgent extends NaiveMCTS {
 
             if (preferredActions.contains("ATTACK_NEAR_BASE")
                 && type == UnitAction.TYPE_ATTACK_LOCATION
-                && isActionNearAnyOwnBase(a, u.getPlayer(), baseDefenseRadius())) {
+                && isActionNearAnyOwnBase(a, u.getPlayer(), BASE_DEFENSE_RADIUS)) {
                 score += 3;
             }
 
@@ -1030,9 +754,6 @@ public class MCTSAgent extends NaiveMCTS {
         return score;
     }
 
-    /**
-     * Filters out action sets that violate the current global stance.
-     */
     private boolean actionRespectsCurrentStance(PlayerAction pa) {
         if (pa == null) return false;
 
@@ -1069,9 +790,6 @@ public class MCTSAgent extends NaiveMCTS {
         return false;
     }
 
-    /**
-     * Maps low-level unit actions into strategic intent buckets.
-     */
     private Intent classifyIntent(Unit unit, UnitAction action, int player) {
         if (unit == null || action == null) return Intent.NEUTRAL;
         int t = action.getType();
@@ -1087,7 +805,7 @@ public class MCTSAgent extends NaiveMCTS {
             return currentStance == Stance.ATTACK ? Intent.OFFENSE : Intent.DEFENSE;
         }
         if (t == UnitAction.TYPE_ATTACK_LOCATION) {
-            return isActionNearAnyOwnBase(action, player, baseDefenseRadius())
+            return isActionNearAnyOwnBase(action, player, BASE_DEFENSE_RADIUS)
                     ? Intent.DEFENSE
                     : Intent.OFFENSE;
         }
@@ -1147,14 +865,6 @@ public class MCTSAgent extends NaiveMCTS {
         return u.getY();
     }
 
-    /**
-     * True when the current map is 8x8 (used for the tiny-map worker-rush policy).
-     */
-    private boolean isEightByEightMap(GameState gs) {
-        if (gs == null || gs.getPhysicalGameState() == null) return false;
-        return gs.getPhysicalGameState().getWidth() == 8 && gs.getPhysicalGameState().getHeight() == 8;
-    }
-
     private int distanceToClosest(Unit from, List<Unit> targets) {
         if (targets == null || targets.isEmpty()) return Integer.MAX_VALUE;
         int best = Integer.MAX_VALUE;
@@ -1166,7 +876,6 @@ public class MCTSAgent extends NaiveMCTS {
     }
 
     private boolean isGettingRushed(int player, GameState gs) {
-        int rushAlertRadius = rushAlertRadius(gs);
         List<Unit> myBases = new ArrayList<>();
         int myCombat = 0;
         int enemyThreat = 0;
@@ -1179,7 +888,7 @@ public class MCTSAgent extends NaiveMCTS {
             boolean isThreat = enemy.getType().canAttack || "Worker".equals(enemy.getType().name);
             if (!isThreat) continue;
             int d = distanceToClosest(enemy, myBases);
-            if (d <= rushAlertRadius) enemyThreat++;
+            if (d <= RUSH_ALERT_RADIUS) enemyThreat++;
         }
         return enemyThreat >= 2 || (enemyThreat > 0 && enemyThreat >= myCombat);
     }
@@ -1229,9 +938,6 @@ public class MCTSAgent extends NaiveMCTS {
         return committed;
     }
 
-    /**
-     * Opening completion condition.
-     */
     private boolean openingGoalsMet(int player, GameState gs) {
         int workers = 0;
         int ranged = 0;
@@ -1244,10 +950,10 @@ public class MCTSAgent extends NaiveMCTS {
             if ("Heavy".equals(u.getType().name)) heavy++;
             if ("Barracks".equals(u.getType().name)) barracks++;
         }
-        return workers >= openingWorkerTarget(gs)
+        return workers >= OPENING_WORKER_TARGET
                 && barracks >= 1
-                && ranged >= openingRangedTarget(gs)
-                && heavy >= openingHeavyTarget(gs);
+                && ranged >= OPENING_RANGED_TARGET
+                && heavy >= OPENING_HEAVY_TARGET;
     }
 
     private int minDistanceToEnemyBase(int x, int y, int player) {
@@ -1303,104 +1009,6 @@ public class MCTSAgent extends NaiveMCTS {
         return false;
     }
 
-    private static int getEnvInt(String key, int defaultValue) {
-        String raw = System.getenv(key);
-        if (raw == null || raw.trim().isEmpty()) return defaultValue;
-        try {
-            return Integer.parseInt(raw.trim());
-        } catch (NumberFormatException ignored) {
-            return defaultValue;
-        }
-    }
-
-    private int openingEndTick(GameState gs) {
-        int area = mapArea(gs);
-        if (area <= 64) return 260;
-        if (area <= 144) return OPENING_END_TICK_DEFAULT;
-        return 460;
-    }
-
-    private int openingWorkersBeforeBarracks(GameState gs) {
-        int area = mapArea(gs);
-        if (area <= 64) return 0;
-        return OPENING_WORKERS_BEFORE_BARRACKS_DEFAULT;
-    }
-
-    private int openingWorkerTarget(GameState gs) {
-        int area = mapArea(gs);
-        if (area <= 64) return 3;
-        if (area <= 144) return OPENING_WORKER_TARGET_DEFAULT;
-        return 5;
-    }
-
-    private int openingRangedTarget(GameState gs) {
-        int area = mapArea(gs);
-        if (area <= 144) return OPENING_RANGED_TARGET_DEFAULT;
-        return 2;
-    }
-
-    private int openingHeavyTarget(GameState gs) {
-        return OPENING_HEAVY_TARGET_DEFAULT;
-    }
-
-    private int rushAlertRadius(GameState gs) {
-        if (gs == null || gs.getPhysicalGameState() == null) return RUSH_ALERT_RADIUS_DEFAULT;
-        int minDim = Math.min(gs.getPhysicalGameState().getWidth(), gs.getPhysicalGameState().getHeight());
-        int scaled = (int) Math.round(minDim * 0.75);
-        return Math.max(5, Math.min(12, scaled));
-    }
-
-    private int baseDefenseRadius() {
-        if (gs_to_start_from == null || gs_to_start_from.getPhysicalGameState() == null) {
-            return BASE_DEFENSE_RADIUS_DEFAULT;
-        }
-        int minDim = Math.min(gs_to_start_from.getPhysicalGameState().getWidth(),
-                gs_to_start_from.getPhysicalGameState().getHeight());
-        if (minDim <= 8) return 3;
-        if (minDim <= 16) return BASE_DEFENSE_RADIUS_DEFAULT;
-        return 5;
-    }
-
-    private int mapArea(GameState gs) {
-        if (gs == null || gs.getPhysicalGameState() == null) return 0;
-        return gs.getPhysicalGameState().getWidth() * gs.getPhysicalGameState().getHeight();
-    }
-
-    private boolean isLlmPreferredUnitActive(int currentTick) {
-        return llmPreferredUnitOverride != null
-                && !llmPreferredUnitOverride.isEmpty()
-                && currentTick <= llmPreferredUnitOverrideUntil;
-    }
-
-    @Override
-    public void reset() {
-        super.reset();
-        lastConsultTick = -9999;
-        activePlayer = 0;
-        openingComplete = false;
-        finishMode = false;
-        llmWorkerRushMode = false;
-        llmTinyMapPlanResolved = false;
-        currentStance = Stance.DEFEND;
-        preferredUnit = "RANGED";
-        preferredReason = "Defensive opening";
-        preferredActions.clear();
-        preferredActions.add("PRODUCE_HEAVY");
-        preferredActions.add("PRODUCE_RANGED");
-        preferredActions.add("DEFEND_BASE");
-        llmPreferredUnitOverride = null;
-        llmPreferredUnitOverrideUntil = -1;
-        synchronized (this) {
-            llmRequestGeneration++;
-            llmRequestInFlight = false;
-            pendingLlmResponse = null;
-            pendingLlmResponseTick = -1;
-        }
-    }
-
-    /**
-     * Clones runtime strategy state so search rollouts and future decisions stay behaviorally consistent.
-     */
     @Override
     public AI clone() {
         MCTSAgent cloned = new MCTSAgent(utt);
@@ -1420,14 +1028,7 @@ public class MCTSAgent extends NaiveMCTS {
         cloned.preferredActions = new HashSet<>(preferredActions);
         cloned.activePlayer = activePlayer;
         cloned.openingComplete = openingComplete;
-        cloned.finishMode = finishMode;
-        cloned.llmWorkerRushMode = llmWorkerRushMode;
-        cloned.llmTinyMapPlanResolved = llmTinyMapPlanResolved;
-        cloned.resolvedOllamaModel = resolvedOllamaModel;
-        cloned.llmPreferredUnitOverride = llmPreferredUnitOverride;
-        cloned.llmPreferredUnitOverrideUntil = llmPreferredUnitOverrideUntil;
-        cloned.lastConsultTick = lastConsultTick;
-        cloned.applyStanceBiases();
+        cloned.playoutPolicy = "HEAVY".equals(preferredUnit) ? cloned.heavyRushPolicy : cloned.rangedRushPolicy;
         return cloned;
     }
 
